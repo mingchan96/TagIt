@@ -1,6 +1,6 @@
-# TagIt
+# TagIt: 
 Senior Design AR Virtual Tagging Application
-Team:
+# Team:
   Mathew Billone,
   David Chan,
   William Esteves,
