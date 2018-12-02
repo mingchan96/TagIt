@@ -1,0 +1,39 @@
+<?xml version="1.0" encoding="utf-8"?>
+<menu xmlns:app="http://schemas.android.com/apk/res-auto"
+    xmlns:android="http://schemas.android.com/apk/res/android">
+
+    <item
+        android:id="@+id/navigation_home"
+        android:icon="@drawable/ic_home_black_24dp"
+        android:title="@string/title_home" />
+
+    <item
+        android:id="@+id/geolocate_home"
+        android:checkable="true"
+        android:enabled="true"
+        android:icon="@android:drawable/ic_menu_mylocation"
+        android:title="@string/title_geolocation"
+        android:visible="true" />
+    <item
+        android:id="@+id/accelerometer_title"
+        android:checkable="true"
+        android:enabled="true"
+        android:icon="@android:drawable/ic_menu_always_landscape_portrait"
+        android:title="@string/title_accel"
+        android:visible="true" />
+    <item
+        android:id="@+id/compass_home"
+        android:checkable="true"
+        android:enabled="true"
+        android:icon="@android:drawable/ic_menu_compass"
+        android:title="@string/title_compass"
+        android:visible="true" />
+    <item
+        android:id="@+id/post_home"
+        android:checkable="true"
+        android:enabled="true"
+        android:icon="@android:drawable/ic_menu_send"
+        android:title="POST"
+        android:visible="true" />
+
+</menu>
