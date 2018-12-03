@@ -11,6 +11,7 @@ import android.support.annotation.NonNull;
 import android.support.design.widget.BottomNavigationView;
 import android.support.v4.app.ActivityCompat;
 import android.support.v7.app.AppCompatActivity;
+import android.util.Log;
 import android.view.MenuItem;
 import android.view.View;
 import android.widget.Button;
@@ -18,8 +19,19 @@ import android.widget.LinearLayout;
 import android.widget.TextView;
 import android.widget.Toast;
 
+import com.google.firebase.database.DataSnapshot;
+import com.google.firebase.database.DatabaseError;
 import com.google.firebase.database.DatabaseReference;
 import com.google.firebase.database.FirebaseDatabase;
+import com.google.firebase.database.Query;
+import com.google.firebase.database.ValueEventListener;
+
+import java.util.ArrayList;
+import java.util.Collections;
+import java.util.HashMap;
+import java.util.Iterator;
+import java.util.List;
+import java.util.Map;
 
 public class MainActivity extends AppCompatActivity {
 
@@ -30,6 +42,8 @@ public class MainActivity extends AppCompatActivity {
     //Get firebase database reference
     private DatabaseReference mDatabase = FirebaseDatabase.getInstance().getReference();
 
+    //data to be filled in
+    private Data data = new Data();
 
     //Geolocate
     private LocationManager locationManager;
@@ -90,8 +104,7 @@ public class MainActivity extends AppCompatActivity {
         locationListener = new LocationListener() {
             public void onLocationChanged(Location location) {
                 // Called when a new location is found by the network location provider.
-                coordinates[0] = location.getLatitude();
-                coordinates[1] = location.getLongitude();
+                data.setLocation(location.getLatitude(),location.getLongitude());
             }
 
             public void onStatusChanged(String provider, int status, Bundle extras) {
@@ -120,7 +133,7 @@ public class MainActivity extends AppCompatActivity {
         geolocate_init();
         btn.setOnClickListener(new View.OnClickListener(){
             public void onClick(View view) {
-                mTextMessage.setText("Latitude: " + coordinates[0] + "\nLongitude: " + coordinates[1]);
+                mTextMessage.setText("Latitude: " + data.getLatitude() + "\nLongitude: " + data.getLongitude());
                 Toast.makeText(view.getContext(),"Geolocation Fetched!",Toast.LENGTH_LONG).show();
             }
         });
@@ -128,11 +141,45 @@ public class MainActivity extends AppCompatActivity {
 
     public void post_home(){
         mTextMessage.setText(mDatabase.getKey());
+
+        //initiate geolocate
+        geolocate_init();
+
         btn.setOnClickListener(new View.OnClickListener(){
             public void onClick(View view) {
-                //mDatabase.child("people").setValue(new Data());
-                mDatabase.child("data").setValue("Message:Finally posting to firebase");
-                Toast.makeText(view.getContext(),"Posting to Firebase!",Toast.LENGTH_LONG).show();
+                //get the most recent entry key
+                Query query = mDatabase.child("data").orderByKey().limitToLast(1);
+                //query.addListenerForSingleValueEvent(new ValueEventListener() {
+                mDatabase.child("data").addListenerForSingleValueEvent(new ValueEventListener() {
+                    @Override
+                    public void onDataChange(DataSnapshot dataSnapshot) {
+                        /*DataSnapshot latestEntry = dataSnapshot.getChildren().iterator().next();
+                        configureData(latestEntry.getKey());*/
+
+                        List<Integer> dataNums = new ArrayList<>();
+                        Iterable<DataSnapshot> data_list = dataSnapshot.getChildren();
+                        for(DataSnapshot data: data_list)
+                        {
+                            String entryId = data.getKey();
+                            //System.out.println("*****Key: " + entryId);
+                            dataNums.add(Integer.parseInt(entryId.split("-")[1]) + 1);
+                        }
+                        configureData(Collections.max(dataNums));
+                        Map<String,Object> posted_data = new HashMap<String,Object>();
+                        posted_data.put(data.getId(),data);
+
+                        mDatabase.child("data").updateChildren(posted_data);
+                        Toast.makeText(getApplicationContext(),"Posting to Firebase!",Toast.LENGTH_LONG).show();
+
+
+                    }
+
+                    @Override
+                    public void onCancelled(DatabaseError databaseError) {
+                        // ...
+                        Toast.makeText(getApplicationContext(),"Error in posting to Firebase",Toast.LENGTH_LONG).show();
+                    }
+                });
             }
         });
     }
@@ -145,5 +192,12 @@ public class MainActivity extends AppCompatActivity {
             locationManager.removeUpdates(locationListener);
         }
 
+    }
+
+    //called to make Data object to post to Firebase
+    public Data configureData(int id){
+        data.setId(id);
+        data.setDatetime();
+        return data;
     }
 }
