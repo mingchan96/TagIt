@@ -17,11 +17,13 @@ public class MainActivity extends AppCompatActivity implements SensorEventListen
     private float azimuth=0f;
     private float currectAzimuth = 0f;
     private SensorManager mSensorManager;
+    TextView tvHeading;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
         setContentView(R.layout.activity_main);
+         tvHeading = (TextView) findViewById(R.id.tvHeading);
         imageView=(ImageView)findViewById(R.id.compass);
         mSensorManager=(SensorManager)getSystemService(SENSOR_SERVICE);
     }
@@ -64,6 +66,7 @@ public class MainActivity extends AppCompatActivity implements SensorEventListen
                 SensorManager.getOrientation(R, orientation);
                 azimuth = (float)Math.toDegrees(orientation[0]);
                 azimuth = (azimuth+360)%360;
+                tvHeading.setText("Heading: " + Float.toString(azimuth) + " degrees");
 
                 Animation anim = new RotateAnimation(-currectAzimuth, -azimuth, Animation.RELATIVE_TO_SELF, 0.5f, Animation.RELATIVE_TO_SELF, 0.5f);
                 currectAzimuth = azimuth;
