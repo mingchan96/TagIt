@@ -11,12 +11,27 @@
     android:paddingTop="16dp"
     tools:context="dev.edmt.compassapp.MainActivity">
 
+    <TextView
+        android:id="@+id/tvHeading"
+        android:layout_width="wrap_content"
+        android:layout_height="20dp"
+        android:layout_centerHorizontal="true"
+        android:text="Heading: 0.0"
+        tools:layout_editor_absoluteX="0dp"
+        tools:layout_editor_absoluteY="0dp" />
+
     <ImageView
         android:id="@+id/compass"
-        android:layout_width="300dp"
-        android:layout_height="300dp"
+        android:layout_width="247dp"
+        android:layout_height="264dp"
+        android:layout_below="@+id/tvHeading"
         android:layout_centerInParent="true"
+        android:layout_marginStart="8dp"
+        android:layout_marginEnd="8dp"
+        android:layout_marginBottom="56dp"
         android:src="@drawable/compass"
-        tools:layout_editor_absoluteX="29dp"
-        tools:layout_editor_absoluteY="69dp" />
+        app:layout_constraintBottom_toBottomOf="parent"
+        app:layout_constraintEnd_toEndOf="parent"
+        app:layout_constraintHorizontal_bias="0.404"
+        app:layout_constraintStart_toStartOf="parent" />
 </android.support.constraint.ConstraintLayout>
