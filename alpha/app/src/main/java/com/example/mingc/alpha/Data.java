@@ -9,6 +9,10 @@ public class Data {
     public String id;
     public double latitude;
     public double longitude;
+    public double Accel_x;
+    public double Accel_y;
+    public double Accel_z;
+    public float azimuth;
     public String datetime;
 
     public Data(){
@@ -18,6 +22,12 @@ public class Data {
     public void setLocation(double latitude, double longitude){
         this.latitude = latitude;
         this.longitude = longitude;
+    }
+    public void setCoordinates(double Accel_x, double Accel_y, double Accel_z){
+        this.Accel_x = Accel_x;
+        this.Accel_y = Accel_y;
+        this.Accel_z = Accel_z;
+
     }
 
     public void setIdFromPreviousId(String entryId){
@@ -45,5 +55,26 @@ public class Data {
 
     public double getLongitude(){
         return this.longitude;
+    }
+
+    public double Accel_x(){
+        return this.Accel_x;
+    }
+
+    public double Accel_y(){
+        return this.Accel_y;
+    }
+
+    public double Accel_z(){
+        return this.Accel_z;
+    }
+
+
+    public void setAzimuth(float azimuth){
+        this.azimuth = azimuth;
+    }
+
+    public float getAzimuth() {
+        return this.azimuth;
     }
 }
