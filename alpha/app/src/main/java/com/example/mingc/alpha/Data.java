@@ -9,7 +9,12 @@ public class Data {
     public String id;
     public double latitude;
     public double longitude;
+    public float z_orient;
+    public float x_orient;
+    public float y_orient;
     public String datetime;
+
+
 
     public Data(){
 

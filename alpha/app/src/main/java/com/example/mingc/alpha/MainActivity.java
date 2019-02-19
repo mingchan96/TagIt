@@ -3,6 +3,10 @@ package com.example.mingc.alpha;
 import android.Manifest;
 import android.content.Context;
 import android.content.pm.PackageManager;
+import android.hardware.Sensor;
+import android.hardware.SensorEvent;
+import android.hardware.SensorEventListener;
+import android.hardware.SensorManager;
 import android.location.Location;
 import android.location.LocationListener;
 import android.location.LocationManager;
@@ -33,7 +37,7 @@ import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 
-public class MainActivity extends AppCompatActivity {
+public class MainActivity extends AppCompatActivity implements SensorEventListener{
 
     private TextView mTextTitle;
     private TextView mTextMessage;
@@ -49,6 +53,22 @@ public class MainActivity extends AppCompatActivity {
     private LocationManager locationManager;
     private LocationListener locationListener;
     private double[] coordinates = new double[2];
+
+    //Compass
+    private SensorManager mSensorManager;
+    private float[] mAccelerometerReading = new float[3];
+    private float[] mMagnetometerReading = new float[3];
+
+    private final float[] mRotationMatrix = new float[9];
+    private final float[] mOrientationAngles = new float[3];
+    float degrees;
+    boolean compassDisplay = false;
+
+
+    float[] mGravity = new float[3];
+    float[] mGeomagnetic = new float[3];
+    float RArr[] = new float[9];
+    float I[] = new float[9];
 
     private BottomNavigationView.OnNavigationItemSelectedListener mOnNavigationItemSelectedListener
             = new BottomNavigationView.OnNavigationItemSelectedListener() {
@@ -72,6 +92,7 @@ public class MainActivity extends AppCompatActivity {
                 case R.id.compass_home:
                     reset_state();
                     mTextTitle.setText("Display Compass");
+                    compass_home();
                     return true;
                 case R.id.post_home:
                     reset_state();
@@ -94,39 +115,12 @@ public class MainActivity extends AppCompatActivity {
         BottomNavigationView navigation = (BottomNavigationView) findViewById(R.id.navigation);
         navigation.setOnNavigationItemSelectedListener(mOnNavigationItemSelectedListener);
 
+        //acquire a reference to system's sensor
+        mSensorManager = (SensorManager) this.getSystemService(Context.SENSOR_SERVICE);
+
     }
 
-    //handles displaying geolocation information
-    public void geolocate_init() {
-        // Acquire a reference to the system Location Manager
-        locationManager = (LocationManager) this.getSystemService(Context.LOCATION_SERVICE);
-        // Define a listener that responds to location updates
-        locationListener = new LocationListener() {
-            public void onLocationChanged(Location location) {
-                // Called when a new location is found by the network location provider.
-                data.setLocation(location.getLatitude(),location.getLongitude());
-            }
 
-            public void onStatusChanged(String provider, int status, Bundle extras) {
-            }
-
-            public void onProviderEnabled(String provider) {
-            }
-
-            public void onProviderDisabled(String provider) {
-            }
-        };
-        // Register the listener with the Location Manager to receive location updates
-        if (ActivityCompat.checkSelfPermission(this, Manifest.permission.ACCESS_FINE_LOCATION) != PackageManager.PERMISSION_GRANTED && ActivityCompat.checkSelfPermission(this, Manifest.permission.ACCESS_COARSE_LOCATION) != PackageManager.PERMISSION_GRANTED) {
-            requestPermissions(new String[]{
-                    Manifest.permission.ACCESS_FINE_LOCATION, Manifest.permission.ACCESS_COARSE_LOCATION,
-                    Manifest.permission.INTERNET
-            }, 10);
-            return;
-        }
-        locationManager.requestLocationUpdates(LocationManager.GPS_PROVIDER, 0, 0, locationListener);
-        //locationManager.requestLocationUpdates(LocationManager.NETWORK_PROVIDER, 0, 0, locationListener);
-    }
 
     public void geolocation_home(){
         //configure the location listener and start listening
@@ -135,6 +129,21 @@ public class MainActivity extends AppCompatActivity {
             public void onClick(View view) {
                 mTextMessage.setText("Latitude: " + data.getLatitude() + "\nLongitude: " + data.getLongitude());
                 Toast.makeText(view.getContext(),"Geolocation Fetched!",Toast.LENGTH_LONG).show();
+            }
+        });
+    }
+
+    public void compass_home(){
+        //onResume();
+        mTextMessage.setText("z: " + degrees);
+        btn.setOnClickListener(new View.OnClickListener() {
+            @Override
+            public void onClick(View view) {
+                //updateOrientationAngles();
+                //mTextMessage.setText("z: " + Double.toString(Math.toDegrees(mOrientationAngles[0])) + "\nx: " + Float.toString(mOrientationAngles[1]) + "\ny: " + Float.toString(mOrientationAngles[2]));
+                //mTextMessage.setText("z: " + degrees);
+                compassDisplay = !compassDisplay;
+                Toast.makeText(view.getContext(),"Compass button pressed",Toast.LENGTH_LONG).show();
             }
         });
     }
@@ -184,6 +193,9 @@ public class MainActivity extends AppCompatActivity {
         });
     }
 
+
+
+
     public void reset_state(){
         mTextMessage.setText("");
         btn.setOnClickListener(null);
@@ -191,6 +203,7 @@ public class MainActivity extends AppCompatActivity {
         if(locationManager != null) {
             locationManager.removeUpdates(locationListener);
         }
+
 
     }
 
@@ -200,4 +213,116 @@ public class MainActivity extends AppCompatActivity {
         data.setDatetime();
         return data;
     }
+
+    //handles displaying geolocation information
+    public void geolocate_init() {
+        // Acquire a reference to the system Location Manager
+        locationManager = (LocationManager) this.getSystemService(Context.LOCATION_SERVICE);
+        // Define a listener that responds to location updates
+        locationListener = new LocationListener() {
+            public void onLocationChanged(Location location) {
+                // Called when a new location is found by the network location provider.
+                data.setLocation(location.getLatitude(),location.getLongitude());
+            }
+
+            public void onStatusChanged(String provider, int status, Bundle extras) {
+            }
+
+            public void onProviderEnabled(String provider) {
+            }
+
+            public void onProviderDisabled(String provider) {
+            }
+        };
+        // Register the listener with the Location Manager to receive location updates
+        if (ActivityCompat.checkSelfPermission(this, Manifest.permission.ACCESS_FINE_LOCATION) != PackageManager.PERMISSION_GRANTED && ActivityCompat.checkSelfPermission(this, Manifest.permission.ACCESS_COARSE_LOCATION) != PackageManager.PERMISSION_GRANTED) {
+            requestPermissions(new String[]{
+                    Manifest.permission.ACCESS_FINE_LOCATION, Manifest.permission.ACCESS_COARSE_LOCATION,
+                    Manifest.permission.INTERNET
+            }, 10);
+            return;
+        }
+        //locationManager.requestLocationUpdates(LocationManager.GPS_PROVIDER, 0, 0, locationListener);
+        locationManager.requestLocationUpdates(LocationManager.NETWORK_PROVIDER, 0, 0, locationListener);
+    }
+
+    /*Following code is used to obtained info from Magnetometer and Accelerometer*/
+    @Override
+    protected void onResume() {
+        super.onResume();
+
+        // Get updates from the accelerometer and magnetometer at a constant rate.
+        // To make batch operations more efficient and reduce power consumption,
+        // provide support for delaying updates to the application.
+        //
+        // In this example, the sensor reporting delay is small enough such that
+        // the application receives an update before the system checks the sensor
+        // readings again.
+        Sensor accelerometer = mSensorManager.getDefaultSensor(Sensor.TYPE_ACCELEROMETER);
+        if (accelerometer != null) {
+            mSensorManager.registerListener(this, accelerometer, SensorManager.SENSOR_DELAY_NORMAL, SensorManager.SENSOR_DELAY_UI);
+        }
+        Sensor magneticField = mSensorManager.getDefaultSensor(Sensor.TYPE_ACCELEROMETER);
+        if (magneticField != null) {
+            mSensorManager.registerListener(this, magneticField, SensorManager.SENSOR_DELAY_NORMAL, SensorManager.SENSOR_DELAY_UI);
+        }
+    }
+
+    @Override
+    protected void onPause() {
+        super.onPause();
+
+        // Don't receive any more updates from either sensor.
+        mSensorManager.unregisterListener(this);
+    }
+    // Get readings from accelerometer and magnetometer. To simplify calculations,
+    // consider storing these readings as unit vectors.
+    @Override
+    public void onSensorChanged(SensorEvent event) {
+        int sensorType = event.sensor.getType();
+
+        switch (sensorType) {
+            case Sensor.TYPE_ACCELEROMETER:
+                mAccelerometerReading = event.values.clone();
+                break;
+            case Sensor.TYPE_MAGNETIC_FIELD:
+                mMagnetometerReading = event.values.clone();
+                break;
+            default:
+                return;
+        }
+
+        boolean rotationOK = SensorManager.getRotationMatrix(mRotationMatrix,
+                null, mAccelerometerReading, mMagnetometerReading);
+
+        if (rotationOK) {
+            SensorManager.getOrientation(mRotationMatrix, mOrientationAngles);
+        }
+
+        //if(compassDisplay)
+        //{
+            //mTextMessage.setText("z: " + mOrientationAngles[0] + "\nx: " + mOrientationAngles[1] + "\ny: " + mOrientationAngles[2]);
+        //}
+
+    }
+
+    @Override
+    public void onAccuracyChanged(Sensor sensor, int accuracy) {
+
+    }
+
+    // Compute the three orientation angles based on the most recent readings from
+    // the device's accelerometer and magnetometer.
+    /*public void updateOrientationAngles() {
+        // Update rotation matrix, which is needed to update orientation angles.
+        SensorManager.getRotationMatrix(mRotationMatrix, null,
+                mAccelerometerReading, mMagnetometerReading);
+
+        // "mRotationMatrix" now has up-to-date information.
+
+        SensorManager.getOrientation(mRotationMatrix, mOrientationAngles);
+
+        // "mOrientationAngles" now has up-to-date information.
+    }*/
+
 }

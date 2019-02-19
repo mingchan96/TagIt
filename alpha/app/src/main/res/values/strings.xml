@@ -6,4 +6,6 @@
     <string name="title_geolocation">Latitude/Longitude</string>
     <string name="title_accel">Accelerometer</string>
     <string name="title_compass">Compass</string>
+
+    <string name="value_format">%1$.2f</string>
 </resources>
