@@ -54,6 +54,7 @@ public class MainActivity extends AppCompatActivity implements SensorEventListen
     private LocationListener locationListener;
     private double[] coordinates = new double[2];
 
+<<<<<<< HEAD
     //Compass
     private SensorManager mSensorManager;
     private float[] mAccelerometerReading = new float[3];
@@ -69,6 +70,19 @@ public class MainActivity extends AppCompatActivity implements SensorEventListen
     float[] mGeomagnetic = new float[3];
     float RArr[] = new float[9];
     float I[] = new float[9];
+=======
+    //Accelerometer
+    private SensorManager SM;
+    private Sensor mySensor;
+
+    //Compass
+    private float[] mGravity= new float[3];
+    private float[] mGeomagnetic = new float[3];
+    private float azimuth=0f;
+    private float currectAzimuth = 0f;
+    private SensorManager mSensorManager;
+
+>>>>>>> 089066f8e6b90ae60de16d9cc27dd645c5dc0ab7
 
     private BottomNavigationView.OnNavigationItemSelectedListener mOnNavigationItemSelectedListener
             = new BottomNavigationView.OnNavigationItemSelectedListener() {
@@ -88,6 +102,7 @@ public class MainActivity extends AppCompatActivity implements SensorEventListen
                 case R.id.accelerometer_title:
                     reset_state();
                     mTextTitle.setText("Display Accelerometer");
+                    accelerometer_home();
                     return true;
                 case R.id.compass_home:
                     reset_state();
@@ -114,13 +129,35 @@ public class MainActivity extends AppCompatActivity implements SensorEventListen
         btn = (Button) findViewById(R.id.button);
         BottomNavigationView navigation = (BottomNavigationView) findViewById(R.id.navigation);
         navigation.setOnNavigationItemSelectedListener(mOnNavigationItemSelectedListener);
+<<<<<<< HEAD
 
         //acquire a reference to system's sensor
         mSensorManager = (SensorManager) this.getSystemService(Context.SENSOR_SERVICE);
+=======
+        mSensorManager=(SensorManager)getSystemService(SENSOR_SERVICE);
+    }
+>>>>>>> 089066f8e6b90ae60de16d9cc27dd645c5dc0ab7
 
     }
 
 
+<<<<<<< HEAD
+=======
+            public void onProviderDisabled(String provider) {
+            }
+        };
+        // Register the listener with the Location Manager to receive location updates
+        if (ActivityCompat.checkSelfPermission(this, Manifest.permission.ACCESS_FINE_LOCATION) != PackageManager.PERMISSION_GRANTED && ActivityCompat.checkSelfPermission(this, Manifest.permission.ACCESS_COARSE_LOCATION) != PackageManager.PERMISSION_GRANTED) {
+            requestPermissions(new String[]{
+                    Manifest.permission.ACCESS_FINE_LOCATION, Manifest.permission.ACCESS_COARSE_LOCATION,
+                    Manifest.permission.INTERNET
+            }, 10);
+            return;
+        }
+        //locationManager.requestLocationUpdates(LocationManager.GPS_PROVIDER, 0, 0, locationListener);
+        locationManager.requestLocationUpdates(LocationManager.NETWORK_PROVIDER, 0, 0, locationListener);
+    }
+>>>>>>> 089066f8e6b90ae60de16d9cc27dd645c5dc0ab7
 
     public void geolocation_home(){
         //configure the location listener and start listening
@@ -129,6 +166,38 @@ public class MainActivity extends AppCompatActivity implements SensorEventListen
             public void onClick(View view) {
                 mTextMessage.setText("Latitude: " + data.getLatitude() + "\nLongitude: " + data.getLongitude());
                 Toast.makeText(view.getContext(),"Geolocation Fetched!",Toast.LENGTH_LONG).show();
+            }
+        });
+    }
+    public void accelerometer_init() {
+        // Create Sensor Manager
+        SM = (SensorManager)getSystemService(SENSOR_SERVICE);
+
+        //Accelerometer Sensor
+        mySensor = SM.getDefaultSensor(Sensor.TYPE_ACCELEROMETER);
+
+        //Register sensor Listener
+        SM.registerListener(this, mySensor, SensorManager.SENSOR_DELAY_NORMAL);
+
+
+    }
+    public void accelerometer_home(){
+        //configure the location listener and start listening
+        accelerometer_init();
+        btn.setOnClickListener(new View.OnClickListener(){
+            public void onClick(View view) {
+                mTextMessage.setText("X: " + data.Accel_x() + "\nY: " + data.Accel_y()
+                        +"\nZ: "+data.Accel_z());
+                Toast.makeText(view.getContext(),"Accelerometer Info Fetched!",Toast.LENGTH_LONG).show();
+            }
+        });
+    }
+    public void compass_home(){
+        //configure the location listener and start listening
+        btn.setOnClickListener(new View.OnClickListener(){
+            public void onClick(View view) {
+                mTextMessage.setText("Heading: " + data.getAzimuth() + " degrees");
+                Toast.makeText(view.getContext(),"Accelerometer Info Fetched!",Toast.LENGTH_LONG).show();
             }
         });
     }
@@ -153,6 +222,9 @@ public class MainActivity extends AppCompatActivity implements SensorEventListen
 
         //initiate geolocate
         geolocate_init();
+
+        //initiate accelerometer
+        accelerometer_init();
 
         btn.setOnClickListener(new View.OnClickListener(){
             public void onClick(View view) {
@@ -214,6 +286,7 @@ public class MainActivity extends AppCompatActivity implements SensorEventListen
         return data;
     }
 
+<<<<<<< HEAD
     //handles displaying geolocation information
     public void geolocate_init() {
         // Acquire a reference to the system Location Manager
@@ -324,5 +397,54 @@ public class MainActivity extends AppCompatActivity implements SensorEventListen
 
         // "mOrientationAngles" now has up-to-date information.
     }*/
+=======
+
+    public void onSensorChanged(SensorEvent sensorEvent) {
+        final float alpha = 0.97f;
+        synchronized (this) {
+            if (sensorEvent.sensor.getType() == Sensor.TYPE_ACCELEROMETER) {
+                mGravity[0] = alpha * mGravity[0] + (1 - alpha) * sensorEvent.values[0];
+                mGravity[1] = alpha * mGravity[1] + (1 - alpha) * sensorEvent.values[1];
+                mGravity[2] = alpha * mGravity[2] + (1 - alpha) * sensorEvent.values[2];
+                data.setCoordinates(sensorEvent.values[0], sensorEvent.values[1],
+                        sensorEvent.values[2]);
+            }
+            if (sensorEvent.sensor.getType() == Sensor.TYPE_MAGNETIC_FIELD) {
+                mGeomagnetic[0] = alpha * mGeomagnetic[0] + (1 - alpha) * sensorEvent.values[0];
+                mGeomagnetic[1] = alpha * mGeomagnetic[1] + (1 - alpha) * sensorEvent.values[1];
+                mGeomagnetic[2] = alpha * mGeomagnetic[2] + (1 - alpha) * sensorEvent.values[2];
+            }
+            float R[] = new float[9];
+            float I[] = new float[9];
+            boolean success = SensorManager.getRotationMatrix(R, I, mGravity, mGeomagnetic);
+            if (success) {
+                float orientation[] = new float[3];
+                SensorManager.getOrientation(R, orientation);
+                azimuth = (float) Math.toDegrees(orientation[0]);
+                azimuth = (azimuth + 360) % 360;
+            }
+        }
+        data.setAzimuth(azimuth);
+    }
+
+    public void onAccuracyChanged(Sensor sensor, int i) {
+
+    }
+    @Override
+    protected void onResume(){
+        super.onResume();
+        mSensorManager.registerListener(this, mSensorManager.getDefaultSensor(Sensor.TYPE_MAGNETIC_FIELD),
+                SensorManager.SENSOR_DELAY_GAME);
+        mSensorManager.registerListener(this, mSensorManager.getDefaultSensor(Sensor.TYPE_ACCELEROMETER),
+                SensorManager.SENSOR_DELAY_GAME);
+    }
+
+    @Override
+    protected void onPause(){
+        super.onPause();
+        mSensorManager.unregisterListener(this);
+    }
+>>>>>>> 089066f8e6b90ae60de16d9cc27dd645c5dc0ab7
 
 }
+
