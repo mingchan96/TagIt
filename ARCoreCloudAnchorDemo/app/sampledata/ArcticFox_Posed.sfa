@@ -18,7 +18,7 @@
           metallic: 0,
         },
         {
-          roughness: 1,
+          roughness: 0.5,
         },
         {
           opacity: null,
@@ -37,7 +37,7 @@
     file: 'sampledata/ArcticFox_Posed.obj',
     name: 'ArcticFox_Posed',
     recenter: 'root',
-    scale: 0.045,
+    scale: 0.05886700000000001,
   },
   samplers: [
     {
