@@ -42,13 +42,18 @@ import java.time.Instant;
 import java.time.ZoneId;
 import java.time.format.DateTimeFormatter;
 import java.time.temporal.ChronoUnit;
+import java.util.ArrayList;
 import java.util.Date;
 import java.util.HashMap;
+import java.util.Timer;
+import java.util.concurrent.TimeUnit;
 
 public class MainActivity extends AppCompatActivity implements SensorEventListener {
 
     //used to format the number displayed
     NumberFormat numberFormatter = NumberFormat.getInstance();
+    //used to format the date
+    DateFormat dateFormat = new SimpleDateFormat("yyyy/MM/dd HH:mm:ss");
 
     private Button btn;
     private Button resolveBtn;
@@ -56,9 +61,10 @@ public class MainActivity extends AppCompatActivity implements SensorEventListen
     //object holding the phone orientation data
     private Data phoneData;
     //object holding the closest anchor's geolocation and orientation
-    private Data anchorPhysicalData;
+    private Data anchorPhysicalData = null;
     //closests distance to anchor in meters
     float closestDistance = -1;
+
     //which state the app is in
     private String appState;
 
@@ -79,6 +85,10 @@ public class MainActivity extends AppCompatActivity implements SensorEventListen
 
     //used for Firebase
     private DatabaseReference mDatabase;
+    //contains Firebase's data
+    Iterable<DataSnapshot> firebaseData;
+    //Iterable<Data> firebaseData;
+
 
     //ARCore stuff
     private CustomArFragment arFragment;
@@ -111,26 +121,40 @@ public class MainActivity extends AppCompatActivity implements SensorEventListen
                     appState = "PLACE";
                     restUI();
                     mTextMessage.setText(R.string.title_place);
-                    placeArObject();
                     return true;
                 case R.id.navigation_check:
                     appState = "CHECK";
                     restUI();
+                    btn.setOnClickListener(new View.OnClickListener(){
+                        public void onClick(View view) {
+                            //getClosestAnchor();
+                        }
+                    });
                     checkLocations();
                     mTextMessage.setText(R.string.title_check);
                     return true;
                 case R.id.navigation_resolve:
                     appState = "RESOLVE";
+                    //checkLocations();
                     restUI();
-                    checkLocations();
                     mTextMessage.setText(R.string.title_resolve);
                     btn.setOnClickListener(new View.OnClickListener(){
                         public void onClick(View view) {
-                            //locationOrientationFeedback();
-                            System.out.println("x-axis: " + phoneData.getAccel_x());
-                            System.out.println("y-axis: " + phoneData.getAccel_y());
-                            System.out.println("z-axis: " + phoneData.getAccel_z());
-                            System.out.println("azimuth: " + azimuth);
+                            //checkLocations();
+                            locationOrientationFeedback();
+                            //showMessage("RESOLVE", anchorPhysicalData.getAnchorId());
+                            //System.out.println("x-axis: " + phoneData.getAccel_x());
+                            //System.out.println("y-axis: " + phoneData.getAccel_y());
+                            //System.out.println("z-axis: " + phoneData.getAccel_z());
+                            //System.out.println("azimuth: " + azimuth);
+                        }
+                    });
+                    resolveBtn.setOnClickListener(new View.OnClickListener() {
+                        @Override
+                        public void onClick(View v) {
+                            //checkLocations();
+                            resolveCloudAnchor();
+                            //showToast("Hello");
                         }
                     });
                     return true;
@@ -148,7 +172,6 @@ public class MainActivity extends AppCompatActivity implements SensorEventListen
         FirebaseApp.initializeApp(this);
         //Get firebase database reference
         mDatabase = FirebaseDatabase.getInstance().getReference("cloud_anchor");
-        DateFormat dateFormat = new SimpleDateFormat("yyyy/MM/dd HH:mm:ss");
         phoneData = new Data(mDatabase);
 
         mTextMessage = (TextView) findViewById(R.id.message);
@@ -160,23 +183,25 @@ public class MainActivity extends AppCompatActivity implements SensorEventListen
 
         //acquire a reference to system's sensor
         mSensorManager = (SensorManager) this.getSystemService(Context.SENSOR_SERVICE);
-
+        //firebaseData_init();
         geolocate_init();
         accelerometer_init();
+        ARFragment_init();
         appState = "HOME";
+        showMessage("HOME","Home");
 
         //remove any outdated data
         //removeOutdatedData();
     }
 
-    public void placeArObject(){
+    /*public void placeArObject(){
         btn.setOnClickListener(new View.OnClickListener(){
             public void onClick(View view) {
                 phoneData.post();
                 showToast("Button Clicked - data posted");
             }
         });
-    }
+    }*/
 
     //handles initializing geolocation information and acts as the app's ticker for apps
     public void geolocate_init() {
@@ -188,12 +213,13 @@ public class MainActivity extends AppCompatActivity implements SensorEventListen
                 // Called when a new location is found by the network location provider.
                 phoneData.setLocation(location.getLatitude(),location.getLongitude());
                 String message = "Latitude: " + location.getLatitude() + "\nLongitude: " + location.getLongitude();
-                showMessage("PLACE", message);
+                String datetimeNow = "Updated on: " + dateFormat.format(new Date()) + "\n";
 
-                //if the app state is CHECK then constantly update the distances to anchor and the closest anchor's physical data
-                if(appState.compareTo("CHECK") == 0){
-                    checkLocations();
-                }
+                showMessage("PLACE", datetimeNow + message);
+
+                //constantly update the distances to anchors and the closest anchor's physical data
+                //checkLocations();
+                //getClosestAnchor();
 
             }
 
@@ -214,16 +240,91 @@ public class MainActivity extends AppCompatActivity implements SensorEventListen
             }, 10);
             return;
         }
-        locationManager.requestLocationUpdates(LocationManager.GPS_PROVIDER, 0, 0, locationListener);
-        //locationManager.requestLocationUpdates(LocationManager.NETWORK_PROVIDER, 0, 0, locationListener);
+        //locationManager.requestLocationUpdates(LocationManager.GPS_PROVIDER, 0, 0, locationListener);
+        locationManager.requestLocationUpdates(LocationManager.NETWORK_PROVIDER, 1, 0, locationListener);
     }
 
-    //check the closest anchor's location and gets the closest anchor's physical data
-    public void checkLocations(){
+    //Everytime data change in Firebase, this will fetch it in a different thread
+    public void firebaseData_init(){
         ValueEventListener dataListener = new ValueEventListener() {
 
             @Override
             public void onDataChange(DataSnapshot dataSnapshot) {
+                firebaseData = dataSnapshot.getChildren();
+            }
+
+            @Override
+            public void onCancelled(DatabaseError databaseError) {
+
+            }
+        };
+        mDatabase.addValueEventListener(dataListener);
+    }
+
+    public void getClosestAnchor(){
+        System.out.println("##########################\ngetClosestAnchor call\n#######################");
+        if(firebaseData == null){
+            showToast("There is no firebase data at this time");
+            System.out.println("There is no firebase data at this time");
+        }
+
+        String message = "";
+        Data closestAnchorData = new Data();
+        for(DataSnapshot postedDataSnapshot: firebaseData){
+            if(postedDataSnapshot.getKey().compareTo("testHash") != 0){
+                message += postedDataSnapshot.getKey() + "\n";
+                Data data = postedDataSnapshot.getValue(Data.class);
+
+                System.out.println(postedDataSnapshot.getKey() + "\n");
+
+                //use built in Location.distanceBetween to calculate distance in meters
+                float[] distance = new float[1];
+                Location.distanceBetween(
+                        //double startLatitude, double startLongitude, double endLatitude, double endLongitude, float[] results
+                        phoneData.getLatitude(),phoneData.getLongitude(),data.getLatitude(),data.getLongitude(),distance);
+                //System.out.println(distance[0]);
+                message += "\tDistance: " + numberFormatter.format(distance[0]) + " m\n";
+
+                //check if this iteration is the closest distance
+                if(closestDistance == -1)
+                {
+                    closestDistance = distance[0];
+                    closestAnchorData = data;
+                }
+                else if(distance[0] < closestDistance){
+                    closestDistance = distance[0];
+                    closestAnchorData = data;
+                }
+            }
+        }
+        System.out.println("line 276 - Exit for loop Firebase data processing");
+        //list the distance from each anchor during CHECK state
+        showMessage("CHECK", message);
+
+        //if there is not data assigned to closestAnchorData then don't overwrite the anchorPhysicalData
+        if( (closestAnchorData.getAnchorId().compareTo("null")) == 0) {
+            //anchorPhysicalData = closestAnchorData;
+        }
+        else{
+            showToast("No anchorPhysicalData is assigned");
+        }
+        try {
+            System.out.println("Anchor id: " + anchorPhysicalData.getAnchorId());
+        }catch(Exception e){
+            System.out.println("Error in getClosesAnchor");
+            System.out.println(e.getMessage());
+        }
+        System.out.println("##########################\nfinish getClosestAnchor\n#######################");
+    }
+
+    //check the closest anchor's location and gets the closest anchor's physical data
+    public void checkLocations(){
+        System.out.println("##########################\ncheckLocations call\n#######################");
+        ValueEventListener dataListener = new ValueEventListener() {
+
+            @Override
+            public void onDataChange(DataSnapshot dataSnapshot) {
+                System.out.println("line 237 - Enter processing Firebase Data");
                 String message = "";
 
                 Data closestAnchorData = new Data();
@@ -238,10 +339,10 @@ public class MainActivity extends AppCompatActivity implements SensorEventListen
                         //System.out.println("Firebase Lat: " + data.getLatitude());
                         //System.out.println("Firebase Long: " + data.getLongitude());
                         //apply the traditional distance formula
-                        /*double latitudeDifference = phoneData.getLatitude() - data.getLatitude();
-                        double longitudeDifference = phoneData.getLongitude() - data.getLongitude();
-                        double distance = Math.sqrt(Math.pow(latitudeDifference,2) + Math.pow(longitudeDifference,2));
-                        */
+                        //double latitudeDifference = phoneData.getLatitude() - data.getLatitude();
+                        //double longitudeDifference = phoneData.getLongitude() - data.getLongitude();
+                        //double distance = Math.sqrt(Math.pow(latitudeDifference,2) + Math.pow(longitudeDifference,2));
+
                         //use built in Location.distanceBetween to calculate distance in meters
                         float[] distance = new float[1];
                         Location.distanceBetween(
@@ -254,16 +355,29 @@ public class MainActivity extends AppCompatActivity implements SensorEventListen
                         if(closestDistance == -1)
                         {
                             closestDistance = distance[0];
-                            closestAnchorData = data;
+                            //closestAnchorData = data;
+                            anchorPhysicalData = data;
                         }
                         else if(distance[0] < closestDistance){
                             closestDistance = distance[0];
-                            closestAnchorData = data;
+                            //closestAnchorData = data;
+                            anchorPhysicalData = data;
                         }
                     }
                 }
+                System.out.println("line 276 - Exit for loop Firebase data processing");
                 showMessage("CHECK", message);
-                anchorPhysicalData = closestAnchorData;
+
+                //if there is not data assigned to closestAnchorData then don't overwrite the anchorPhysicalData
+                if( (anchorPhysicalData.getAnchorId().compareTo("null")) == 0) {
+                    //anchorPhysicalData = closestAnchorData;
+                    showToast("No anchorPhysicalData is assigned");
+                }
+                else{
+                    //showToast("No anchorPhysicalData is assigned");
+                }
+
+                System.out.println("line 239 - Assigned anchorPysicalData");
             }
 
             @Override
@@ -273,18 +387,36 @@ public class MainActivity extends AppCompatActivity implements SensorEventListen
         };
 
         //show the list when button is clicked
-        /*btn.setOnClickListener(new View.OnClickListener(){
+        btn.setOnClickListener(new View.OnClickListener(){
             public void onClick(View view) {
                 mDatabase.addListenerForSingleValueEvent(dataListener);
-                showToast("Button Clicked - checking geolocation");
+                showToast("Button Clicked - checking Firebase");
             }
-        });*/
+        });
 
+        System.out.println("line 296 - Before calling mDatabase.addListenerForSingle....");
         mDatabase.addListenerForSingleValueEvent(dataListener);
+
+        System.out.println("line 298 - After calling mDatabase.addListenerForSingle....");
+        try {
+            //TimeUnit.SECONDS.sleep(1);
+            System.out.println(anchorPhysicalData.getAnchorId());
+        }catch(Exception e){
+            System.out.println("anchorPhysicalData cannot be found");
+            System.out.println(e.getMessage());
+        }
+
     }
 
     public void locationOrientationFeedback(){
-        checkLocations();
+        //getClosestAnchor();
+
+        if(anchorPhysicalData == null){
+            showToast("No anchor data is available");
+            return;
+        }
+
+        showMessage("RESOLVE", anchorPhysicalData.getAnchorId());
         //System.out.println("Closes Distance: " + closestDistance);
         if(closestDistance == -1){
             showToast("No data to be found");
@@ -293,7 +425,9 @@ public class MainActivity extends AppCompatActivity implements SensorEventListen
             showToast(numberFormatter.format(closestDistance) + " m away from anchor");
         }
         //if the phone is not facing within 10 degrees of anchor's direction then advise user
-        else if( !((anchorPhysicalData.getAzimuth() - 5 < azimuth) && (azimuth < anchorPhysicalData.getAzimuth() + 5 )) ){
+        //(anchorPhysicalData.getAzimuth() - 5)%360 : in case minus 5 results in a negative number
+        //(azimuth < (anchorPhysicalData.getAzimuth() + 5 )%360) : in case + 5 results in a number greater than 360
+        else if( !(( (anchorPhysicalData.getAzimuth() - 5)%360 < azimuth) && (azimuth < (anchorPhysicalData.getAzimuth() + 5 )%360) ) ){
             //the anchor's degree is greater than phone's azimuth then turn right
             if(azimuth < anchorPhysicalData.getAzimuth()){
                 showToast("Turn to the right");
@@ -389,14 +523,13 @@ public class MainActivity extends AppCompatActivity implements SensorEventListen
 
     }
 
-
-    /*public void placeArObject(){
+    public void ARFragment_init(){
         arFragment = (CustomArFragment) getSupportFragmentManager().findFragmentById(R.id.fragment);
 
         arFragment.setOnTapArPlaneListener(((hitResult, plane, motionEvent) -> {
 
             //if the model is placed then don't place model again/user's tap
-            if(!isPlaced) {
+            if(!isPlaced && appState.compareTo("PLACE") == 0) {
                 anchor = arFragment.getArSceneView().getSession().hostCloudAnchor(hitResult.createAnchor());
                 appAnchorState = AppAnchorState.HOSTING;
 
@@ -423,25 +556,57 @@ public class MainActivity extends AppCompatActivity implements SensorEventListen
                 //the id is a long string so use a shorter key
                 String anchorId = anchor.getCloudAnchorId();
                 showToast("Anchor hosted successfully. Anchor id: " + anchorId);
+                //post the phone's orientation to Firebase and use anchorId as the key
+                phoneData.post(anchorId);
+                showToast("Data posted to Firebase");
             }
         });
     }
 
-    //ArcticFox_Posed.sfb
-    //Giraffe_01(1).sfb
-    private void createModel(Anchor anchor) {
-        ModelRenderable
-                .builder()
-                .setSource(this, Uri.parse("ArcticFox_Posed.sfb"))
-                .build()
-                .thenAccept(modelRenderable -> placeModel(anchor, modelRenderable));
+    public void resolveCloudAnchor(){
+        showToast("resolveCloudAnchor");
+        //String anchorId = "ua-5e221e9d288596b56144f7eb97164443";
+
+        //if the anchorPhysicalData is null or the AnchorId is blank
+        if(anchorPhysicalData == null){
+            showToast("No anchor data is available");
+            return;
+        }
+
+        try {
+            String anchorId = anchorPhysicalData.getAnchorId();
+            showToast("Got the AnchorID");
+            //showToast(anchorId.substring(0,6));
+
+            if (anchorId.equals("null") || anchorId.equals("") || anchorId == null) {
+                Toast.makeText(this, "No anchorId found", Toast.LENGTH_LONG).show();
+                return;
+            }
+            showToast(anchorId);
+            Anchor resolvedAnchor = arFragment.getArSceneView().getSession().resolveCloudAnchor(anchorId);
+            createModel(resolvedAnchor);
+
+        }catch(Exception e) {
+            System.out.println(e.getMessage());
+            showMessage("RESOLVE",e.getMessage());
+        }
     }
 
-    private void placeModel(Anchor anchor, ModelRenderable modelRenderable) {
+    //ArcticFox_Posed.sfb
+    //Giraffe_01(1).sfb
+    private void createModel(Anchor anchor){
+        ModelRenderable
+                    .builder()
+                    .setSource(this, Uri.parse("ArcticFox_Posed.sfb"))
+                    .build()
+                    .thenAccept(modelRenderable -> placeModel(anchor, modelRenderable));
+    }
+
+    private void placeModel(Anchor anchor, ModelRenderable modelRenderable){
         AnchorNode anchorNode = new AnchorNode(anchor);
         anchorNode.setRenderable(modelRenderable);
         arFragment.getArSceneView().getScene().addChild(anchorNode);
-    }*/
+    }
 
     public void restUI(){
         btn.setOnClickListener(null);
@@ -449,7 +614,7 @@ public class MainActivity extends AppCompatActivity implements SensorEventListen
     }
 
     //remove any Firebase data that is 23 hours over
-    private void removeOutdatedData(){
+    /*private void removeOutdatedData(){
         System.out.println("removeOutdatedData");
         ValueEventListener dataListener = new ValueEventListener() {
 
@@ -484,6 +649,51 @@ public class MainActivity extends AppCompatActivity implements SensorEventListen
         };
 
         mDatabase.addListenerForSingleValueEvent(dataListener);
+    }*/
+
+    private void removeOutdatedData(){
+        //used to parse the datetime in the yyyy/MM/dd HH:mm:ss format
+        SimpleDateFormat sdf = new SimpleDateFormat("yyyy/MM/dd HH:mm:ss");
+        ValueEventListener dataListener = new ValueEventListener() {
+            @Override
+            public void onDataChange(DataSnapshot dataSnapshot) {
+                //23 hours in milliseconds
+                long twentyThreeHours_MILLIS = 23 * 60 * 60 * 1000L;
+                String message = "";
+                for (DataSnapshot postedDataSnapshot: dataSnapshot.getChildren()) {
+                    if(postedDataSnapshot.getKey().compareTo("testHash") != 0) {
+                        String dataKey = postedDataSnapshot.getKey();
+                        Data data = postedDataSnapshot.getValue(Data.class);
+
+                        try {
+                            //create the date objects
+                            Date dataDatetime = sdf.parse(data.getDatetime());
+                            Date phoneDatetime = new Date();
+                            //if more than 23 hours then delete the record
+                            if( Math.abs(phoneDatetime.getTime() - dataDatetime.getTime()) > twentyThreeHours_MILLIS){
+                                //removeData(dataKey);
+                                message += "Key: " + dataKey + " will be removed\n";
+                                //System.out.println("Key: " + dataKey + " has been removed");
+                            }
+                        }catch (Exception e){
+                                message += "Error in removedOutdatedData: " + dataKey + "\n";
+                                System.out.println(e.getMessage());
+
+                        }
+
+
+                    }
+                }
+                showMessage("HOME",message);
+            }
+
+            @Override
+            public void onCancelled(DatabaseError databaseError) {
+                showToast("Fail at fetching data from firebase");
+            }
+        };
+
+        mDatabase.addListenerForSingleValueEvent(dataListener);
     }
 
     //delete data in Firebase by giving the key value/path value
@@ -501,4 +711,5 @@ public class MainActivity extends AppCompatActivity implements SensorEventListen
             mTextMessage.setText(message);
         }
     }
+
 }

@@ -19,7 +19,7 @@ public class Data {
 
     private String databaseRoot = "cloud_anchor";
 
-    public String anchorId;
+    public String anchorId = "null";
     public double latitude;
     public double longitude;
     public double accel_x;
@@ -62,6 +62,17 @@ public class Data {
         mDatabase.updateChildren(dataToPost);
     }
 
+    //post to Firebase and provide the anchorID as the key
+    public void post(String key){
+        DateFormat dateFormat = new SimpleDateFormat("yyyy/MM/dd HH:mm:ss");
+        this.datetime = dateFormat.format(new Date());
+        HashMap<String, Object> dataToPost = new HashMap<>();
+        this.anchorId = key;
+        dataToPost.put(key, this);
+        //mDatabase.child(databaseRoot).updateChildren(dataToPost);
+        mDatabase.updateChildren(dataToPost);
+    }
+
     //set the id
     public void setId(String id){
         this.anchorId = id;
@@ -86,7 +97,7 @@ public class Data {
     }
 
     //getters
-    public String anchorId(){
+    public String getAnchorId(){
         return this.anchorId;
     }
 
