@@ -1,10 +1,10 @@
 {
   materials: [
     {
-      name: 'ArcticFox_Posed_initialShadingGroup',
+      name: 'mat21',
       parameters: [
         {
-          baseColor: 'ArcticFox_Diffuse',
+          baseColor: null,
         },
         {
           baseColorTint: [
@@ -18,7 +18,7 @@
           metallic: 0,
         },
         {
-          roughness: 0.5,
+          roughness: 1,
         },
         {
           opacity: null,
@@ -34,17 +34,9 @@
       'Orientation',
     ],
     collision: {},
-    file: 'sampledata/ArcticFox_Posed.obj',
-    name: 'ArcticFox_Posed',
+    file: 'sampledata/arrow.obj',
+    name: 'arrow',
     recenter: 'root',
-    scale: 0.05886700000000001,
   },
-  samplers: [
-    {
-      file: 'sampledata\\ArcticFox_Diffuse.png',
-      name: 'ArcticFox_Diffuse',
-      pipeline_name: 'ArcticFox_Diffuse.png',
-    },
-  ],
   version: '0.54:2',
 }

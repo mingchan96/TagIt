@@ -1,5 +1,6 @@
 package com.example.blue_alpha;
 
+//class used to represent each blue light phone
 public class BlueLight {
     private String name;
     private double Lat;

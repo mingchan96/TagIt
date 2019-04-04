@@ -6,14 +6,23 @@ import android.content.pm.PackageManager;
 import android.location.Location;
 import android.location.LocationListener;
 import android.location.LocationManager;
+import android.net.Uri;
 import android.os.Bundle;
 import android.support.annotation.NonNull;
 import android.support.design.widget.BottomNavigationView;
 import android.support.v4.app.ActivityCompat;
+import android.support.v7.app.AlertDialog;
 import android.support.v7.app.AppCompatActivity;
 import android.view.MenuItem;
 import android.widget.TextView;
 
+import com.google.ar.core.Anchor;
+import com.google.ar.sceneform.AnchorNode;
+import com.google.ar.sceneform.math.Quaternion;
+import com.google.ar.sceneform.math.Vector3;
+import com.google.ar.sceneform.rendering.ModelRenderable;
+import com.google.ar.sceneform.ux.ArFragment;
+import com.google.ar.sceneform.ux.TransformableNode;
 import com.google.firebase.FirebaseApp;
 import com.google.firebase.database.DataSnapshot;
 import com.google.firebase.database.DatabaseError;
@@ -39,6 +48,9 @@ public class MainActivity extends AppCompatActivity {
 
     //closest Blue Light Phone
     private BlueLight closestBlueLight = null;
+
+    //ARCore
+    private ArFragment arFragment;
 
     private TextView mTextMessage;
 
@@ -70,6 +82,7 @@ public class MainActivity extends AppCompatActivity {
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
+        System.out.println("****onCreate called****");
         super.onCreate(savedInstanceState);
         setContentView(R.layout.activity_main);
 
@@ -82,8 +95,46 @@ public class MainActivity extends AppCompatActivity {
         mDatabase = FirebaseDatabase.getInstance().getReference("blue light phones");
         firebaseData_init();
         geolocate_init();
+        arCore_init();
         appState = "HOME";
+
+
     }
+
+    private void arCore_init(){
+        arFragment = (ArFragment) getSupportFragmentManager().findFragmentById(R.id.arFragment);
+        arFragment.setOnTapArPlaneListener(((hitResult, plane, motionEvent) -> {
+            if(appState.compareTo("SEARCH") == 0) {
+                Anchor anchor = hitResult.createAnchor();
+
+                ModelRenderable.builder()
+                        .setSource(this, Uri.parse("arrow.sfb"))
+                        .build()
+                        .thenAccept(modelRenderable -> addModelToScene(anchor, modelRenderable))
+                        .exceptionally(throwable -> {
+                            AlertDialog.Builder builder = new AlertDialog.Builder(this);
+                            builder.setMessage(throwable.getMessage())
+                                    .show();
+                            return null;
+                        });
+            }
+        }));
+
+    }
+
+    private void addModelToScene(Anchor anchor, ModelRenderable modelRenderable) {
+        AnchorNode anchorNode = new AnchorNode(anchor);
+        TransformableNode transformableNode = new TransformableNode(arFragment.getTransformationSystem());
+        //rotate the arrow about the z axis
+        //transformableNode.setLocalRotation(Quaternion.axisAngle(new Vector3(0, 0, 1f), 90f));
+        //rotate the arrow about the x axis
+        transformableNode.setLocalRotation(Quaternion.axisAngle(new Vector3(0, 0, 1f), 90f));
+        transformableNode.setParent(anchorNode);
+        transformableNode.setRenderable(modelRenderable);
+        arFragment.getArSceneView().getScene().addChild(anchorNode);
+        transformableNode.select();
+    }
+
 
     public void firebaseData_init(){
         ValueEventListener dataListener = new ValueEventListener() {
@@ -221,6 +272,7 @@ public class MainActivity extends AppCompatActivity {
     private void showMessage(String state, String message){
         if(state.compareTo(appState) == 0) {
             mTextMessage.setText(message);
+            System.out.println(message);
         }
     }
 }
