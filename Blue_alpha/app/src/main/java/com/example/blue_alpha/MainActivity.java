@@ -45,6 +45,7 @@ public class MainActivity extends AppCompatActivity {
     private LocationListener locationListener;
     private double currentLat = -1;
     private double currentLong = -1;
+    private double bearing = 0;
 
     //closest Blue Light Phone
     private BlueLight closestBlueLight = null;
@@ -234,6 +235,10 @@ public class MainActivity extends AppCompatActivity {
         }
 
         closestBlueLight = tempClosestBlueLight;
+
+        //get the angle between the closest blue light and current position
+        //bearing = angleFromCoordinate(currentLat,currentLong,closestBlueLight.getLat(),closestBlueLight.getLong());
+
         showCloestBlueLight();
     }
 
@@ -241,7 +246,8 @@ public class MainActivity extends AppCompatActivity {
         String message;
         if(closestBlueLight != null) {
             message = "Name: " + closestBlueLight.getName() + "\nLat: " + closestBlueLight.getLat() +
-                    "\nLong: " + closestBlueLight.getLong() + "\nDistance: " + closestBlueLight.getDistance();
+                    "\nLong: " + closestBlueLight.getLong() + "\nDistance: " + closestBlueLight.getDistance() +
+                    "\nBearing: " + bearing;
         }
         else{
             message = "no info available yet";
@@ -264,8 +270,9 @@ public class MainActivity extends AppCompatActivity {
 
         brng = Math.toDegrees(brng);
         brng = (brng + 360) % 360;
-        brng = 360 - brng; // count degrees counter-clockwise - remove to make clockwise
+        //brng = 360 - brng; // count degrees counter-clockwise - remove to make clockwise
 
+        System.out.println("***bearing: " + brng);
         return brng;
     }
 
