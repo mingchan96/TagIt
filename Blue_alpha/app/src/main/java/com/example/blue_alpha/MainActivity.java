@@ -31,6 +31,7 @@ import com.google.firebase.database.FirebaseDatabase;
 import com.google.firebase.database.ValueEventListener;
 
 import java.util.ArrayList;
+import java.util.Collections;
 
 public class MainActivity extends AppCompatActivity {
 
@@ -74,6 +75,7 @@ public class MainActivity extends AppCompatActivity {
                 case R.id.navigation_search:
                     appState = "SEARCH";
                     mTextMessage.setText(R.string.title_search);
+                    checkClosestBlueLight();
                     showCloestBlueLight();
                     return true;
             }
@@ -163,8 +165,13 @@ public class MainActivity extends AppCompatActivity {
         //if the blueLights array is not empty then list the blue lights
         String message = "";
         if(!blueLights.isEmpty()){
-            for (BlueLight bluelight: blueLights) {
-                message += bluelight.getName() + "\n" + bluelight.getLat() + "\n" + bluelight.getLong() + "\n";
+            for (BlueLight blueLight: blueLights) {
+                message += blueLight.getName() + "\n" + blueLight.getLat() + "\n" + blueLight.getLong() + "\n";
+                float[] distance = new float[1];
+                Location.distanceBetween(
+                        //double startLatitude, double startLongitude, double endLatitude, double endLongitude, float[] results
+                        currentLat,currentLong,blueLight.getLat(),blueLight.getLong(),distance);
+                message += "Distance: " + distance[0] + "\n";
             }
         }
 
@@ -183,7 +190,7 @@ public class MainActivity extends AppCompatActivity {
                 currentLong = location.getLongitude();
                 String message = "currentLat: " + currentLat + "\ncurrentLong: " + currentLong;
                 showMessage("HOME",message);
-                checkClosestBlueLight();
+                //checkClosestBlueLight();
 
             }
 
@@ -223,22 +230,15 @@ public class MainActivity extends AppCompatActivity {
                     //double startLatitude, double startLongitude, double endLatitude, double endLongitude, float[] results
                     currentLat,currentLong,blueLight.getLat(),blueLight.getLong(),distance);
             blueLight.setDistance(distance[0]);
-            if(closestBlueLight == null){
-                tempClosestBlueLight = blueLight;
-                tempClosestDistance = distance[0];
-            }
-            //if closest distance is greater than or equal to the next distance then replace
-            else if(tempClosestDistance >= distance[0]){
-                tempClosestBlueLight = blueLight;
-                tempClosestDistance = distance[0];
-            }
+            System.out.println("Name: " + blueLight.getName() + "\tDistance: " + distance[0] + "\n");
         }
 
-        closestBlueLight = tempClosestBlueLight;
-
+        //sort the blueLights by the distance, in ascending order
+        Collections.sort(blueLights);
+        //get the first element in sorted list
+        closestBlueLight = blueLights.get(0);
         //get the angle between the closest blue light and current position
-        //bearing = angleFromCoordinate(currentLat,currentLong,closestBlueLight.getLat(),closestBlueLight.getLong());
-
+        bearing = angleFromCoordinate(currentLat,currentLong,closestBlueLight.getLat(),closestBlueLight.getLong());
         showCloestBlueLight();
     }
 

@@ -1,7 +1,9 @@
 package com.example.blue_alpha;
 
+import static java.lang.Float.compare;
+
 //class used to represent each blue light phone
-public class BlueLight {
+public class BlueLight implements Comparable <BlueLight>{
     private String name;
     private double Lat;
     private double Long;
@@ -32,5 +34,11 @@ public class BlueLight {
 
     public void setDistance(float distance){
         this.distance = distance;
+    }
+
+    //used in the Collections.sort() to sort by the distance
+    @Override
+    public int compareTo(BlueLight blueLight){
+        return compare(this.getDistance(), blueLight.getDistance());
     }
 }
