@@ -38,7 +38,8 @@ dependencies {
 }
 
 
-sceneform.asset('sampledata/arrow.obj',
+
+sceneform.asset('sampledata/model.obj',
         'default',
-        'sampledata/arrow.sfa',
-        'src/main/assets/arrow')
+        'sampledata/model.sfa',
+        'src/main/assets/model')
