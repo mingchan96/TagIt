@@ -103,7 +103,6 @@ public class MainActivity extends AppCompatActivity implements SensorEventListen
                     mTextMessage.setText(R.string.title_search);
                     //checkClosestBlueLight();
                     showCloestBlueLight();
-                    addAR();
                     return true;
             }
             return false;
@@ -195,30 +194,31 @@ public class MainActivity extends AppCompatActivity implements SensorEventListen
         arFragment.getArSceneView().getScene().addChild(anchorNode);
         ///anchorNode.setParent(arFragment.getArSceneView().getScene());*/
 
-        // Find a position half a meter in front of the user.
-        Vector3 cameraPos = arFragment.getArSceneView().getScene().getCamera().getWorldPosition();
-        Vector3 cameraForward = arFragment.getArSceneView().getScene().getCamera().getForward();
-        Vector3 position = Vector3.add(cameraPos, cameraForward.scaled(0.6f));
+        if (appState.compareTo("SEARCH") == 0) {
+            // Find a position half a meter in front of the user.
+            Vector3 cameraPos = arFragment.getArSceneView().getScene().getCamera().getWorldPosition();
+            Vector3 cameraForward = arFragment.getArSceneView().getScene().getCamera().getForward();
+            Vector3 position = Vector3.add(cameraPos, cameraForward.scaled(0.6f));
 
-        // Create an ARCore Anchor at the position.
-        Pose pose = Pose.makeTranslation(position.x, position.y, position.z);
-        Anchor anchor = arFragment.getArSceneView().getSession().createAnchor(pose);
+            // Create an ARCore Anchor at the position.
+            Pose pose = Pose.makeTranslation(position.x, position.y, position.z);
+            Anchor anchor = arFragment.getArSceneView().getSession().createAnchor(pose);
 
-        // Create the Sceneform AnchorNode
-        AnchorNode anchorNode = new AnchorNode(anchor);
-        anchorNode.setRenderable(arrowRenderable);
-        anchorNode.setLocalRotation(Quaternion.axisAngle(new Vector3(0, 1f, 0), turningAngle));
-        arFragment.getArSceneView().getScene().addChild(anchorNode);
+            // Create the Sceneform AnchorNode
+            AnchorNode anchorNode = new AnchorNode(anchor);
+            anchorNode.setRenderable(arrowRenderable);
+            anchorNode.setLocalRotation(Quaternion.axisAngle(new Vector3(0, 1f, 0), turningAngle));
+            arFragment.getArSceneView().getScene().addChild(anchorNode);
 
-        anchorNodeLinkedList.add(anchorNode);
+            anchorNodeLinkedList.add(anchorNode);
 
-        //in case to prevent a large number of anchors
-        if(anchorNodeLinkedList.size() > 5)
-        {
-            removeAnchorNode();
+            //in case to prevent a large number of anchors
+            if (anchorNodeLinkedList.size() > 5) {
+                removeAnchorNode();
+            }
+
+            System.out.println("\n###addAR finish run###\n");
         }
-
-        System.out.println("\n###addAR finish run###\n");
     }
 
     private void removeAnchorNode(){
@@ -276,8 +276,8 @@ public class MainActivity extends AppCompatActivity implements SensorEventListen
                 // Called when a new location is found by the network location provider.
                 currentLat = location.getLatitude();
                 currentLong = location.getLongitude();
-                String message = "currentLat: " + currentLat + "\ncurrentLong: " + currentLong;
-                //showMessage("HOME",message);
+                //String message = "currentLat: " + currentLat + "\ncurrentLong: " + currentLong;
+                addAR();
                 checkClosestBlueLight();
                 showLocation();
 
@@ -301,7 +301,7 @@ public class MainActivity extends AppCompatActivity implements SensorEventListen
             return;
         }
         //locationManager.requestLocationUpdates(LocationManager.GPS_PROVIDER, 0, 0, locationListener);
-        locationManager.requestLocationUpdates(LocationManager.NETWORK_PROVIDER, 0, 0, locationListener);
+        locationManager.requestLocationUpdates(LocationManager.NETWORK_PROVIDER, 0, 1, locationListener);
     }
 
     private void showLocation(){
@@ -313,31 +313,34 @@ public class MainActivity extends AppCompatActivity implements SensorEventListen
     }
 
     public void checkClosestBlueLight(){
-        BlueLight tempClosestBlueLight = closestBlueLight;
-        float tempClosestDistance = -1;
+        //if the list of blueLights is not empty then do the following operations
+        if(!blueLights.isEmpty()) {
+            BlueLight tempClosestBlueLight = closestBlueLight;
+            float tempClosestDistance = -1;
 
-        for (BlueLight blueLight: blueLights) {
-            float[] distance = new float[1];
-            Location.distanceBetween(
-                    //double startLatitude, double startLongitude, double endLatitude, double endLongitude, float[] results
-                    currentLat,currentLong,blueLight.getLat(),blueLight.getLong(),distance);
-            blueLight.setDistance(distance[0]);
-            System.out.println("Name: " + blueLight.getName() + "\tDistance: " + distance[0] + "\n");
+            for (BlueLight blueLight : blueLights) {
+                float[] distance = new float[1];
+                Location.distanceBetween(
+                        //double startLatitude, double startLongitude, double endLatitude, double endLongitude, float[] results
+                        currentLat, currentLong, blueLight.getLat(), blueLight.getLong(), distance);
+                blueLight.setDistance(distance[0]);
+                System.out.println("Name: " + blueLight.getName() + "\tDistance: " + distance[0] + "\n");
+            }
+
+            //sort the blueLights by the distance, in ascending order
+            Collections.sort(blueLights);
+            //get the first element in sorted list
+            closestBlueLight = blueLights.get(0);
+
+            //get the angle between the closest blue light and current position
+            bearing = angleFromCoordinate(currentLat, currentLong, closestBlueLight.getLat(), closestBlueLight.getLong());
+            //calculate the angle to rotate the image
+            updateTurningAngle();
+            showCloestBlueLight();
+
+            //add new anchor to the scene
+            //addAR();
         }
-
-        //sort the blueLights by the distance, in ascending order
-        Collections.sort(blueLights);
-        //get the first element in sorted list
-        closestBlueLight = blueLights.get(0);
-
-        //get the angle between the closest blue light and current position
-        bearing = angleFromCoordinate(currentLat,currentLong,closestBlueLight.getLat(),closestBlueLight.getLong());
-        //calculate the angle to rotate the image
-        updateTurningAngle();
-        showCloestBlueLight();
-
-        //add new anchor to the scene
-        //addAR();
     }
 
     private void updateTurningAngle(){//calculate the angle to rotate the image
