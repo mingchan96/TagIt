@@ -25,6 +25,7 @@ import com.google.ar.core.Anchor;
 import com.google.ar.core.Pose;
 import com.google.ar.core.Session;
 import com.google.ar.sceneform.AnchorNode;
+import com.google.ar.sceneform.Node;
 import com.google.ar.sceneform.math.Quaternion;
 import com.google.ar.sceneform.math.Vector3;
 import com.google.ar.sceneform.rendering.ModelRenderable;
@@ -42,6 +43,7 @@ import java.text.SimpleDateFormat;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.Date;
+import java.util.LinkedList;
 
 public class MainActivity extends AppCompatActivity implements SensorEventListener {
 
@@ -68,6 +70,8 @@ public class MainActivity extends AppCompatActivity implements SensorEventListen
     //ARCore
     private ArFragment arFragment;
     private ModelRenderable arrowRenderable;
+    //linked list of anchors to control the number of anchors
+    private LinkedList<AnchorNode> anchorNodeLinkedList = new LinkedList<AnchorNode>();
 
     //Compass
     private float[] mGravity= new float[3];
@@ -148,12 +152,12 @@ public class MainActivity extends AppCompatActivity implements SensorEventListen
 
         arFragment.setOnTapArPlaneListener(((hitResult, plane, motionEvent) -> {
             if(appState.compareTo("SEARCH") == 0) {
-                Anchor anchor = hitResult.createAnchor();
+                Anchor anchor0 = hitResult.createAnchor();
 
                 ModelRenderable.builder()
                         .setSource(this, Uri.parse("model.sfb"))
                         .build()
-                        .thenAccept(modelRenderable -> addModelToScene(anchor, modelRenderable))
+                        .thenAccept(modelRenderable -> addModelToScene(anchor0, modelRenderable))
                         .exceptionally(throwable -> {
                             AlertDialog.Builder builder = new AlertDialog.Builder(this);
                             builder.setMessage(throwable.getMessage())
@@ -170,7 +174,7 @@ public class MainActivity extends AppCompatActivity implements SensorEventListen
         TransformableNode transformableNode = new TransformableNode(arFragment.getTransformationSystem());
         //rotate the arrow about the z axis
         //transformableNode.setLocalRotation(Quaternion.axisAngle(new Vector3(0, 1f, 0), 235f));
-        transformableNode.setLocalRotation(Quaternion.axisAngle(new Vector3(0, 1f, 0), turningAngle));
+        //transformableNode.setLocalRotation(Quaternion.axisAngle(new Vector3(0, 1f, 0), turningAngle));
         //rotate the arrow about the x axis
         //transformableNode.setLocalRotation(Quaternion.axisAngle(new Vector3(1f, 1f, 0), 90f));
         transformableNode.setParent(anchorNode);
@@ -181,7 +185,7 @@ public class MainActivity extends AppCompatActivity implements SensorEventListen
     }
 
     private void addAR(){
-        //Add an Anchor and a renderable in front of the camera
+        /*//Add an Anchor and a renderable in front of the camera
         Session session = arFragment.getArSceneView().getSession();
         float[] pos = { 0,0,-1 };
         float[] rotation = {0,0,0,1};
@@ -189,8 +193,38 @@ public class MainActivity extends AppCompatActivity implements SensorEventListen
         AnchorNode anchorNode = new AnchorNode(anchor);
         anchorNode.setRenderable(arrowRenderable);
         arFragment.getArSceneView().getScene().addChild(anchorNode);
-        ///anchorNode.setParent(arFragment.getArSceneView().getScene());
+        ///anchorNode.setParent(arFragment.getArSceneView().getScene());*/
+
+        // Find a position half a meter in front of the user.
+        Vector3 cameraPos = arFragment.getArSceneView().getScene().getCamera().getWorldPosition();
+        Vector3 cameraForward = arFragment.getArSceneView().getScene().getCamera().getForward();
+        Vector3 position = Vector3.add(cameraPos, cameraForward.scaled(0.6f));
+
+        // Create an ARCore Anchor at the position.
+        Pose pose = Pose.makeTranslation(position.x, position.y, position.z);
+        Anchor anchor = arFragment.getArSceneView().getSession().createAnchor(pose);
+
+        // Create the Sceneform AnchorNode
+        AnchorNode anchorNode = new AnchorNode(anchor);
+        anchorNode.setRenderable(arrowRenderable);
+        anchorNode.setLocalRotation(Quaternion.axisAngle(new Vector3(0, 1f, 0), turningAngle));
+        arFragment.getArSceneView().getScene().addChild(anchorNode);
+
+        anchorNodeLinkedList.add(anchorNode);
+
+        //in case to prevent a large number of anchors
+        if(anchorNodeLinkedList.size() > 5)
+        {
+            removeAnchorNode();
+        }
+
         System.out.println("\n###addAR finish run###\n");
+    }
+
+    private void removeAnchorNode(){
+        AnchorNode anchorNode = anchorNodeLinkedList.removeFirst();
+        anchorNode.getAnchor().detach();
+        arFragment.getArSceneView().getScene().onRemoveChild(anchorNode);
     }
 
     public void firebaseData_init(){
