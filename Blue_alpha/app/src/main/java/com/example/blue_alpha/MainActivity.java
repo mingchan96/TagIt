@@ -2,6 +2,7 @@ package com.example.blue_alpha;
 
 import android.Manifest;
 import android.content.Context;
+import android.content.IntentSender;
 import android.content.pm.PackageManager;
 import android.hardware.Sensor;
 import android.hardware.SensorEvent;
@@ -13,14 +14,25 @@ import android.location.LocationManager;
 import android.net.Uri;
 import android.os.Bundle;
 import android.support.annotation.NonNull;
+import android.support.annotation.Nullable;
 import android.support.design.widget.BottomNavigationView;
 import android.support.v4.app.ActivityCompat;
+import android.support.v4.content.ContextCompat;
+import android.support.v4.content.PermissionChecker;
 import android.support.v7.app.AlertDialog;
 import android.support.v7.app.AppCompatActivity;
 import android.util.Log;
 import android.view.MenuItem;
 import android.widget.TextView;
+import android.widget.Toast;
 
+import com.google.android.gms.common.ConnectionResult;
+import com.google.android.gms.common.api.GoogleApiClient;
+import com.google.android.gms.location.FusedLocationProviderClient;
+import com.google.android.gms.location.LocationCallback;
+import com.google.android.gms.location.LocationRequest;
+import com.google.android.gms.location.LocationResult;
+import com.google.android.gms.location.LocationServices;
 import com.google.ar.core.Anchor;
 import com.google.ar.core.Pose;
 import com.google.ar.core.Session;
@@ -37,6 +49,8 @@ import com.google.firebase.database.DatabaseError;
 import com.google.firebase.database.DatabaseReference;
 import com.google.firebase.database.FirebaseDatabase;
 import com.google.firebase.database.ValueEventListener;
+import com.nabinbhandari.android.permissions.PermissionHandler;
+import com.nabinbhandari.android.permissions.Permissions;
 
 import java.text.DateFormat;
 import java.text.SimpleDateFormat;
@@ -45,7 +59,7 @@ import java.util.Collections;
 import java.util.Date;
 import java.util.LinkedList;
 
-public class MainActivity extends AppCompatActivity implements SensorEventListener {
+public class MainActivity extends AppCompatActivity implements SensorEventListener{
 
     //state of app
     private String appState;
@@ -54,18 +68,32 @@ public class MainActivity extends AppCompatActivity implements SensorEventListen
     //used for Firebase
     private DatabaseReference mDatabase;
     //arraylist of blue light phones
-    private ArrayList<BlueLight> blueLights = new ArrayList <BlueLight>();
+    private LinkedList<BlueLight> blueLights = new LinkedList<BlueLight>();
     //Geolocate
     private LocationManager locationManager;
     private LocationListener locationListener;
-    private double currentLat = -1;
-    private double currentLong = -1;
+    //private double currentLat = -1;
+    //private double currentLong = -1;
+    private Location currentLocation = null;
+
+    //use the google services(FusedLocationProviderClient) to get user's location
+    private FusedLocationProviderClient fusedLocationProviderClient;
+    private LocationRequest locationRequest;
+    private LocationCallback locationCallback;
+
     private double bearing = 0;
     //variable contains the angle in which the image needs to rotate
     private float turningAngle = 0;
 
     //closest Blue Light Phone
     private BlueLight closestBlueLight = null;
+    //flag used to limit the call to checking closest blue light
+    private boolean checkedClosestBlueLight = false;
+
+    //API Call to Google Maps AIP to get turn by turn directions
+    private GetDirectionData getDirectionData = new GetDirectionData(this);
+    //contains the coordinates of end locations from Google Maps Directions API
+    public LinkedList<Location> checkpoints = new LinkedList<Location>();
 
     //ARCore
     private ArFragment arFragment;
@@ -101,8 +129,8 @@ public class MainActivity extends AppCompatActivity implements SensorEventListen
                 case R.id.navigation_search:
                     appState = "SEARCH";
                     mTextMessage.setText(R.string.title_search);
-                    //checkClosestBlueLight();
                     showCloestBlueLight();
+                    printDirectionsData();
                     return true;
             }
             return false;
@@ -119,23 +147,28 @@ public class MainActivity extends AppCompatActivity implements SensorEventListen
         BottomNavigationView navigation = (BottomNavigationView) findViewById(R.id.navigation);
         navigation.setOnNavigationItemSelectedListener(mOnNavigationItemSelectedListener);
 
+        //geolocate_init();
+        //check and request getting user's location and requests location updates
+        callLocationPermissions();
+
         FirebaseApp.initializeApp(this);
         //Get firebase database reference
         mDatabase = FirebaseDatabase.getInstance().getReference("blue light phones");
+        firebaseData_init();
+        //set up AR environment
+        arCore_init();
 
+        //initialized for the magnetometer sensor
         mSensorManager=(SensorManager)getSystemService(SENSOR_SERVICE);
 
-        firebaseData_init();
-        geolocate_init();
-        arCore_init();
+        //initialize the state to home
         appState = "HOME";
-
-
     }
 
     private void arCore_init(){
         arFragment = (ArFragment) getSupportFragmentManager().findFragmentById(R.id.arFragment);
 
+        //create the arrow renderable
         ModelRenderable.builder()
                 // To load as an asset from the 'assets' folder ('src/main/assets/andy.sfb'):
                 .setSource(this, Uri.parse("model.sfb"))
@@ -149,7 +182,8 @@ public class MainActivity extends AppCompatActivity implements SensorEventListen
                             return null;
                         });
 
-        arFragment.setOnTapArPlaneListener(((hitResult, plane, motionEvent) -> {
+        //allow users to render an arrow if user tap on screen
+        /*arFragment.setOnTapArPlaneListener(((hitResult, plane, motionEvent) -> {
             if(appState.compareTo("SEARCH") == 0) {
                 Anchor anchor0 = hitResult.createAnchor();
 
@@ -164,11 +198,11 @@ public class MainActivity extends AppCompatActivity implements SensorEventListen
                             return null;
                         });
             }
-        }));
+        }));*/
 
     }
 
-    private void addModelToScene(Anchor anchor, ModelRenderable modelRenderable) {
+    /*private void addModelToScene(Anchor anchor, ModelRenderable modelRenderable) {
         AnchorNode anchorNode = new AnchorNode(anchor);
         TransformableNode transformableNode = new TransformableNode(arFragment.getTransformationSystem());
         //rotate the arrow about the z axis
@@ -181,24 +215,16 @@ public class MainActivity extends AppCompatActivity implements SensorEventListen
         transformableNode.setRenderable(modelRenderable);
         arFragment.getArSceneView().getScene().addChild(anchorNode);
         transformableNode.select();
-    }
+    }*/
 
+    //called to render an arrow in session
     private void addAR(){
-        /*//Add an Anchor and a renderable in front of the camera
-        Session session = arFragment.getArSceneView().getSession();
-        float[] pos = { 0,0,-1 };
-        float[] rotation = {0,0,0,1};
-        Anchor anchor =  session.createAnchor(new Pose(pos, rotation));
-        AnchorNode anchorNode = new AnchorNode(anchor);
-        anchorNode.setRenderable(arrowRenderable);
-        arFragment.getArSceneView().getScene().addChild(anchorNode);
-        ///anchorNode.setParent(arFragment.getArSceneView().getScene());*/
-
+        //only render the arrow if the mode is in SEARCH
         if (appState.compareTo("SEARCH") == 0) {
             // Find a position half a meter in front of the user.
             Vector3 cameraPos = arFragment.getArSceneView().getScene().getCamera().getWorldPosition();
             Vector3 cameraForward = arFragment.getArSceneView().getScene().getCamera().getForward();
-            Vector3 position = Vector3.add(cameraPos, cameraForward.scaled(0.6f));
+            Vector3 position = Vector3.add(cameraPos, cameraForward.scaled(0.9f));
 
             // Create an ARCore Anchor at the position.
             Pose pose = Pose.makeTranslation(position.x, position.y, position.z);
@@ -206,10 +232,25 @@ public class MainActivity extends AppCompatActivity implements SensorEventListen
 
             // Create the Sceneform AnchorNode
             AnchorNode anchorNode = new AnchorNode(anchor);
-            anchorNode.setRenderable(arrowRenderable);
-            anchorNode.setLocalRotation(Quaternion.axisAngle(new Vector3(0, 1f, 0), turningAngle));
-            arFragment.getArSceneView().getScene().addChild(anchorNode);
+            //anchorNode.setRenderable(arrowRenderable);
 
+            //calculate the turning angle for the renderable
+            //maybe create a function that calculate the distance to 1st checkpoint
+            // if distance close then remove checkpoint
+            // and then bearing to the first checkpoint
+            //calculateBearingToCheckpoints();
+
+            //anchorNode.setLocalRotation(Quaternion.axisAngle(new Vector3(0, 1f, 0), 180));
+            //create a transformable node to rotate the object
+            TransformableNode transformableNode = new TransformableNode(arFragment.getTransformationSystem());
+            //new Vector3(axis), degree to turn)
+            transformableNode.setLocalRotation(Quaternion.axisAngle(new Vector3(0, 1f, 0), -120));
+            transformableNode.setParent(anchorNode);
+            transformableNode.setRenderable(arrowRenderable);
+
+            arFragment.getArSceneView().getScene().addChild(anchorNode);
+            transformableNode.select();
+            //add the node to the linked list
             anchorNodeLinkedList.add(anchorNode);
 
             //in case to prevent a large number of anchors
@@ -227,6 +268,7 @@ public class MainActivity extends AppCompatActivity implements SensorEventListen
         arFragment.getArSceneView().getScene().onRemoveChild(anchorNode);
     }
 
+    //fetch the data from firebase
     public void firebaseData_init(){
         ValueEventListener dataListener = new ValueEventListener() {
 
@@ -249,6 +291,7 @@ public class MainActivity extends AppCompatActivity implements SensorEventListen
         mDatabase.addListenerForSingleValueEvent(dataListener);
     }
 
+    //list all the available blue lights
     public void listBlueLights(){
         //if the blueLights array is not empty then list the blue lights
         String message = "";
@@ -256,9 +299,11 @@ public class MainActivity extends AppCompatActivity implements SensorEventListen
             for (BlueLight blueLight: blueLights) {
                 message += blueLight.getName() + "\n" + blueLight.getLat() + "\n" + blueLight.getLong() + "\n";
                 float[] distance = new float[1];
-                Location.distanceBetween(
+                //Location.distanceBetween(
                         //double startLatitude, double startLongitude, double endLatitude, double endLongitude, float[] results
-                        currentLat,currentLong,blueLight.getLat(),blueLight.getLong(),distance);
+                //        currentLat,currentLong,blueLight.getLat(),blueLight.getLong(),distance);
+                Location.distanceBetween(
+                                currentLocation.getLatitude(),currentLocation.getLongitude(),blueLight.getLat(),blueLight.getLong(),distance);
                 message += "Distance: " + distance[0] + "\n";
             }
         }
@@ -266,8 +311,9 @@ public class MainActivity extends AppCompatActivity implements SensorEventListen
         mTextMessage.setText(message);
     }
 
+    //Old way of obtaining the coordinates
     //handles initializing geolocation information and acts as the app's ticker for apps
-    public void geolocate_init() {
+    /*public void geolocate_init() {
         // Acquire a reference to the system Location Manager
         locationManager = (LocationManager) this.getSystemService(Context.LOCATION_SERVICE);
         // Define a listener that responds to location updates
@@ -276,9 +322,11 @@ public class MainActivity extends AppCompatActivity implements SensorEventListen
                 // Called when a new location is found by the network location provider.
                 currentLat = location.getLatitude();
                 currentLong = location.getLongitude();
+                currentLocation = location;
                 //String message = "currentLat: " + currentLat + "\ncurrentLong: " + currentLong;
-                addAR();
-                checkClosestBlueLight();
+                //checkClosestBlueLight();
+                calculateBearingToCheckpoints();
+                //addAR();
                 showLocation();
 
             }
@@ -300,14 +348,88 @@ public class MainActivity extends AppCompatActivity implements SensorEventListen
             }, 10);
             return;
         }
-        //locationManager.requestLocationUpdates(LocationManager.GPS_PROVIDER, 0, 0, locationListener);
-        locationManager.requestLocationUpdates(LocationManager.NETWORK_PROVIDER, 0, 1, locationListener);
+        //locationManager.requestLocationUpdates(LocationManager.GPS_PROVIDER, 1000, 0, locationListener);
+        locationManager.requestLocationUpdates(LocationManager.NETWORK_PROVIDER, 10000, 0, locationListener);
+    }*/
+
+    //new methods used to obtain the user's location
+    private void location_init(){
+        if(fusedLocationProviderClient != null && locationCallback != null) {
+            fusedLocationProviderClient.removeLocationUpdates(locationCallback);
+        }
+    }
+
+    //obtain the user's permission to get their location
+    private void callLocationPermissions(){
+
+        String[] permissions = {Manifest.permission.ACCESS_COARSE_LOCATION, Manifest.permission.ACCESS_FINE_LOCATION};
+        Permissions.check(this/*context*/, permissions, "BluePath: Permission is required", null/*options*/, new PermissionHandler() {
+            @Override
+            public void onGranted() {
+                //get the location if permission was granted
+                requestLocationUpdates();
+            }
+            @Override
+            public void onDenied(Context context, ArrayList<String> deniedPermissions){
+                super.onDenied(context, deniedPermissions);
+            }
+        });
+    }
+
+    //updates the current location coordinates
+    private void requestLocationUpdates(){
+        //if user grants the permissions then proceed with location
+        if(ContextCompat.checkSelfPermission(this,Manifest.permission.ACCESS_COARSE_LOCATION) == PermissionChecker.PERMISSION_GRANTED &&
+        ContextCompat.checkSelfPermission(this,Manifest.permission.ACCESS_FINE_LOCATION) == PermissionChecker.PERMISSION_GRANTED) {
+
+            fusedLocationProviderClient = new FusedLocationProviderClient(this);
+
+            //configuring the location update
+            locationRequest = new LocationRequest();
+            //set the accuracy to high
+            locationRequest.setPriority(LocationRequest.PRIORITY_HIGH_ACCURACY);
+            //set the interval to 5 seconds
+            locationRequest.setInterval(5000);
+            //set the intervals of getting location when app is in the background to 2 seconds
+            locationRequest.setFastestInterval(2000);
+
+            //intialize what needs to be done once location is obtained
+            locationCallback = new LocationCallback() {
+                @Override
+                public void onLocationResult(LocationResult locationResult) {
+                    super.onLocationResult(locationResult);
+                    currentLocation = locationResult.getLastLocation();
+
+                    //currentLat = currentLocation.getLatitude();
+                    //currentLong = currentLocation.getLongitude();
+
+                    //once the asynchronous task is finished then check for the closest blue light
+                    //should only need to be called once since the blue lights are stationary
+                    //if the blueLights data exist and have not checked closest blue light then execute
+                    if(!blueLights.isEmpty() && !checkedClosestBlueLight) {
+                        checkClosestBlueLight();
+                    }
+
+                    //check the status the next checkpoint
+                    calculateBearingToCheckpoints();
+                    addAR();
+                    showLocation();
+
+                }
+            };
+
+            fusedLocationProviderClient.requestLocationUpdates(locationRequest, locationCallback, getMainLooper());
+        }
+        else{
+            callLocationPermissions();
+        }
+
     }
 
     private void showLocation(){
         String message = "Updated on: " + dateFormat.format(new Date()) +
-                "\ncurrentLat: " + currentLat +
-                "\ncurrentLong: " + currentLong +
+                "\ncurrentLat: " + currentLocation.getLatitude() +
+                "\ncurrentLong: " + currentLocation.getLongitude() +
                 "\ncurrentAzimuth: " + azimuth;
         showMessage("HOME",message);
     }
@@ -315,31 +437,60 @@ public class MainActivity extends AppCompatActivity implements SensorEventListen
     public void checkClosestBlueLight(){
         //if the list of blueLights is not empty then do the following operations
         if(!blueLights.isEmpty()) {
-            BlueLight tempClosestBlueLight = closestBlueLight;
-            float tempClosestDistance = -1;
+            //BlueLight tempClosestBlueLight = null;
+            //float tempClosestDistance = -1;
 
+            //for every blue light calculate the distance to them
             for (BlueLight blueLight : blueLights) {
                 float[] distance = new float[1];
+                /*Location.distanceBetween(
+                        //double startLatitude, double startLongitude, double endLatitude, double endLongitude, float[] results
+                        currentLat, currentLong, blueLight.getLat(), blueLight.getLong(), distance);*/
                 Location.distanceBetween(
                         //double startLatitude, double startLongitude, double endLatitude, double endLongitude, float[] results
-                        currentLat, currentLong, blueLight.getLat(), blueLight.getLong(), distance);
+                        currentLocation.getLatitude(), currentLocation.getLongitude(), blueLight.getLat(), blueLight.getLong(), distance);
                 blueLight.setDistance(distance[0]);
                 System.out.println("Name: " + blueLight.getName() + "\tDistance: " + distance[0] + "\n");
             }
 
             //sort the blueLights by the distance, in ascending order
             Collections.sort(blueLights);
+
+            //### implemented for checkClosestBlueLight to be called once
             //get the first element in sorted list
             closestBlueLight = blueLights.get(0);
+            //call the Google Maps Directions API to get the checkpoints
+            callMapAPI();
+            //###
+
+
+            /*//get the first element in sorted list
+            tempClosestBlueLight = blueLights.get(0);
+
+
+            //should only reassign if it is a new closest blue light phone
+            //if there is no initial closest blue light then assign it and call map api to get directions
+            if(closestBlueLight == null) {
+                closestBlueLight = tempClosestBlueLight;
+                callMapAPI();
+            }
+            //if the closest blue light is not the old closest blue light then reassign and call map api
+            else if( (closestBlueLight.getName()).compareTo(tempClosestBlueLight.getName()) != 0 ){
+                closestBlueLight = tempClosestBlueLight;
+                callMapAPI();
+            }
 
             //get the angle between the closest blue light and current position
-            bearing = angleFromCoordinate(currentLat, currentLong, closestBlueLight.getLat(), closestBlueLight.getLong());
-            //calculate the angle to rotate the image
-            updateTurningAngle();
-            showCloestBlueLight();
+            //bearing = bearingBetweenCoordinates(currentLat, currentLong, closestBlueLight.getLat(), closestBlueLight.getLong());
 
-            //add new anchor to the scene
-            //addAR();
+            //calculate the angle to rotate the image
+            //updateTurningAngle();*/
+
+            //set the chcekedClosestBlueLight to true
+            checkedClosestBlueLight = true;
+        }
+        else{
+            Toast.makeText(this,"BlueLights are empty", Toast.LENGTH_SHORT).show();
         }
     }
 
@@ -349,14 +500,17 @@ public class MainActivity extends AppCompatActivity implements SensorEventListen
 
     private void showCloestBlueLight(){
         String message;
-        if(closestBlueLight != null) {
+        if(closestBlueLight != null && appState.compareTo("SEARCH") == 0) {
             message = "Name: " + closestBlueLight.getName() +
                     "\nLat: " + closestBlueLight.getLat() +
                     "\nLong: " + closestBlueLight.getLong() +
                     "\nDistance: " + closestBlueLight.getDistance() +
-                    "\nBearing: " + bearing +
+                    "\nBearing to Checkpoint: " + bearing +
                     "\nHeading: " + azimuth +
-                    "\nTurning Degrees: " + turningAngle;
+                    "\nTurning Degrees: " + turningAngle +
+                    "\nCheckpoint" +
+                    "\nLat: " + checkpoints.getFirst().getLatitude() +
+                    "\nLong: " + checkpoints.getFirst().getLongitude();
         }
         else{
             message = "no info available yet";
@@ -367,7 +521,7 @@ public class MainActivity extends AppCompatActivity implements SensorEventListen
     }
 
     //gotten code from stack overflow to calculate the angle between two latitude and longitude points
-    private double angleFromCoordinate(double lat1, double long1, double lat2, double long2) {
+    private double bearingBetweenCoordinates(double lat1, double long1, double lat2, double long2) {
 
         double dLon = (long2 - long1);
 
@@ -400,12 +554,36 @@ public class MainActivity extends AppCompatActivity implements SensorEventListen
                 SensorManager.SENSOR_DELAY_GAME);
         mSensorManager.registerListener(this, mSensorManager.getDefaultSensor(Sensor.TYPE_ACCELEROMETER),
                 SensorManager.SENSOR_DELAY_GAME);
+
     }
 
     @Override
     protected void onPause(){
         super.onPause();
         mSensorManager.unregisterListener(this);
+        //remove the update when the state is paused
+        fusedLocationProviderClient.removeLocationUpdates(locationCallback);
+    }
+
+    @Override
+    protected void onStart(){
+        super.onStart();
+        //reinstate the update
+        callLocationPermissions();
+    }
+
+    @Override
+    protected void onStop(){
+        //remove the update when the state is in stop
+        fusedLocationProviderClient.removeLocationUpdates(locationCallback);
+        super.onStop();
+    }
+
+    @Override
+    protected void onDestroy(){
+        //remove the update when app is going to be destroyed
+        fusedLocationProviderClient.removeLocationUpdates(locationCallback);
+        super.onDestroy();
     }
 
     @Override
@@ -437,7 +615,6 @@ public class MainActivity extends AppCompatActivity implements SensorEventListen
         if(Math.abs(currentAzimuth - azimuth) > 2)
         {
             currentAzimuth = azimuth;
-            updateTurningAngle();
             showCloestBlueLight();
         }
     }
@@ -446,5 +623,47 @@ public class MainActivity extends AppCompatActivity implements SensorEventListen
     public void onAccuracyChanged(Sensor sensor, int i) {
 
     }
+
+    private void callMapAPI(){
+        //create an array of Doubles as inputs
+        Double[] coordinates = {currentLocation.getLatitude(),currentLocation.getLongitude(),closestBlueLight.getLat(),closestBlueLight.getLong()};
+        getDirectionData.execute(coordinates);
+    }
+
+    //used only to test if direction data exists in checkpoints
+    public void printDirectionsData(){
+        for(Location checkpoint: checkpoints){
+            System.out.println("\nMainActivity printDirectionsData: endLat: " + checkpoint.getLatitude() +
+                    " endLng: " + checkpoint.getLongitude());
+        }
+    }
+
+    public void calculateBearingToCheckpoints(){
+        //proceed with operations if checkpoints is not empty
+        if(!checkpoints.isEmpty()){
+
+            Location checkpoint = checkpoints.getFirst();
+            //tell how far from checkpoint
+            //Location.distanceBetween(currentLocation.getLatitude(),currentLocation.getLongitude(),checkpoint.getLatitude(),checkpoint.getLongitude(),distance);
+            float distance = currentLocation.distanceTo(checkpoint);
+            Toast.makeText(this,distance + "m from checkpoint", Toast.LENGTH_SHORT).show();
+            //if user is 4m near the checkpoint then remove first checkpoint
+            if(distance <= 4){
+                checkpoints.removeFirst();
+                Toast.makeText(this,"Checkpoint Reached", Toast.LENGTH_SHORT).show();
+            }
+            //if the checkpoints is still not empty then get first new checkpoint and set the bearings
+            if(!checkpoints.isEmpty()){
+                checkpoint = checkpoints.getFirst();
+                bearing = currentLocation.bearingTo(checkpoint);
+                //bearing = bearingBetweenCoordinates(currentLat,currentLong,checkpoint.getLat(),checkpoint.getLong());
+                //bearing = bearingBetweenCoordinates(checkpoint.getLat(),checkpoint.getLong(),currentLat,currentLong);
+            }
+            else{
+                Toast.makeText(this,"No more checkpoints", Toast.LENGTH_SHORT).show();
+            }
+        }
+    }
+
 
 }
