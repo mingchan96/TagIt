@@ -26,8 +26,6 @@ import android.view.MenuItem;
 import android.widget.TextView;
 import android.widget.Toast;
 
-import com.google.android.gms.common.ConnectionResult;
-import com.google.android.gms.common.api.GoogleApiClient;
 import com.google.android.gms.location.FusedLocationProviderClient;
 import com.google.android.gms.location.LocationCallback;
 import com.google.android.gms.location.LocationRequest;
@@ -37,6 +35,7 @@ import com.google.ar.core.Anchor;
 import com.google.ar.core.Pose;
 import com.google.ar.core.Session;
 import com.google.ar.sceneform.AnchorNode;
+import com.google.ar.core.Camera;
 import com.google.ar.sceneform.Node;
 import com.google.ar.sceneform.math.Quaternion;
 import com.google.ar.sceneform.math.Vector3;
@@ -106,6 +105,7 @@ public class MainActivity extends AppCompatActivity implements SensorEventListen
     private float[] mGeomagnetic = new float[3];
     private float azimuth=0f;
     private float currentAzimuth = 0f;
+    private float initialAzimuth = 400;
     private SensorManager mSensorManager;
 
     private TextView mTextMessage;
@@ -217,8 +217,9 @@ public class MainActivity extends AppCompatActivity implements SensorEventListen
         transformableNode.select();
     }*/
 
+
     //called to render an arrow in session
-    private void addAR(){
+    private void addAR(ModelRenderable renderable, float angleToTurn){
         //only render the arrow if the mode is in SEARCH
         if (appState.compareTo("SEARCH") == 0) {
             // Find a position half a meter in front of the user.
@@ -232,22 +233,15 @@ public class MainActivity extends AppCompatActivity implements SensorEventListen
 
             // Create the Sceneform AnchorNode
             AnchorNode anchorNode = new AnchorNode(anchor);
-            //anchorNode.setRenderable(arrowRenderable);
 
-            //calculate the turning angle for the renderable
-            //maybe create a function that calculate the distance to 1st checkpoint
-            // if distance close then remove checkpoint
-            // and then bearing to the first checkpoint
-            //calculateBearingToCheckpoints();
-
-            //anchorNode.setLocalRotation(Quaternion.axisAngle(new Vector3(0, 1f, 0), 180));
             //create a transformable node to rotate the object
             TransformableNode transformableNode = new TransformableNode(arFragment.getTransformationSystem());
             //new Vector3(axis), degree to turn)
-            transformableNode.setLocalRotation(Quaternion.axisAngle(new Vector3(0, 1f, 0), -120));
+            transformableNode.setLocalRotation(Quaternion.axisAngle(new Vector3(0, 1f, 0), angleToTurn));
             transformableNode.setParent(anchorNode);
-            transformableNode.setRenderable(arrowRenderable);
+            transformableNode.setRenderable(renderable);
 
+            //anchorNode.setRenderable(renderable);
             arFragment.getArSceneView().getScene().addChild(anchorNode);
             transformableNode.select();
             //add the node to the linked list
@@ -412,7 +406,6 @@ public class MainActivity extends AppCompatActivity implements SensorEventListen
 
                     //check the status the next checkpoint
                     calculateBearingToCheckpoints();
-                    addAR();
                     showLocation();
 
                 }
@@ -495,7 +488,14 @@ public class MainActivity extends AppCompatActivity implements SensorEventListen
     }
 
     private void updateTurningAngle(){//calculate the angle to rotate the image
-        turningAngle = (float) -((bearing - (azimuth + 235)%360 )%360);
+        //turningAngle = (float) -((bearing - (azimuth + 235)%360 )%360);
+        float offset = -125;
+        //turningAngle = (offset + (float)(bearing - azimuth))%360;
+        //make the arrow point in the straight direction
+        //turningAngle = (offset - (float)(bearing - initialAzimuth))%360;
+        turningAngle = (offset - (float)(bearing - initialAzimuth))%360;
+        //turningAngle = 0;
+
     }
 
     private void showCloestBlueLight(){
@@ -617,6 +617,10 @@ public class MainActivity extends AppCompatActivity implements SensorEventListen
             currentAzimuth = azimuth;
             showCloestBlueLight();
         }
+        //the initial orientation of the phone
+        if(appState.compareTo("HOME") == 0){
+            initialAzimuth = azimuth;
+        }
     }
 
     @Override
@@ -658,6 +662,8 @@ public class MainActivity extends AppCompatActivity implements SensorEventListen
                 bearing = currentLocation.bearingTo(checkpoint);
                 //bearing = bearingBetweenCoordinates(currentLat,currentLong,checkpoint.getLat(),checkpoint.getLong());
                 //bearing = bearingBetweenCoordinates(checkpoint.getLat(),checkpoint.getLong(),currentLat,currentLong);
+                updateTurningAngle();
+                addAR(arrowRenderable,turningAngle);
             }
             else{
                 Toast.makeText(this,"No more checkpoints", Toast.LENGTH_SHORT).show();
