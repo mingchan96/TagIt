@@ -130,7 +130,7 @@ public class MainActivity extends AppCompatActivity implements SensorEventListen
                     appState = "SEARCH";
                     mTextMessage.setText(R.string.title_search);
                     showCloestBlueLight();
-                    printDirectionsData();
+                    //printDirectionsData();
                     return true;
             }
             return false;
@@ -393,7 +393,6 @@ public class MainActivity extends AppCompatActivity implements SensorEventListen
                 public void onLocationResult(LocationResult locationResult) {
                     super.onLocationResult(locationResult);
                     currentLocation = locationResult.getLastLocation();
-
                     //currentLat = currentLocation.getLatitude();
                     //currentLong = currentLocation.getLongitude();
 
@@ -407,6 +406,7 @@ public class MainActivity extends AppCompatActivity implements SensorEventListen
                     //check the status the next checkpoint
                     calculateBearingToCheckpoints();
                     showLocation();
+                    showCloestBlueLight();
 
                 }
             };
@@ -492,7 +492,7 @@ public class MainActivity extends AppCompatActivity implements SensorEventListen
         float offset = -125;
         //turningAngle = (offset + (float)(bearing - azimuth))%360;
         //make the arrow point in the straight direction
-        //turningAngle = (offset - (float)(bearing - initialAzimuth))%360;
+        //turningAngle = (offset - (float)(azimuth - initialAzimuth))%360;
         turningAngle = (offset - (float)(bearing - initialAzimuth))%360;
         //turningAngle = 0;
 
@@ -615,7 +615,7 @@ public class MainActivity extends AppCompatActivity implements SensorEventListen
         if(Math.abs(currentAzimuth - azimuth) > 2)
         {
             currentAzimuth = azimuth;
-            showCloestBlueLight();
+            //showCloestBlueLight();
         }
         //the initial orientation of the phone
         if(appState.compareTo("HOME") == 0){
@@ -651,8 +651,8 @@ public class MainActivity extends AppCompatActivity implements SensorEventListen
             //Location.distanceBetween(currentLocation.getLatitude(),currentLocation.getLongitude(),checkpoint.getLatitude(),checkpoint.getLongitude(),distance);
             float distance = currentLocation.distanceTo(checkpoint);
             Toast.makeText(this,distance + "m from checkpoint", Toast.LENGTH_SHORT).show();
-            //if user is 4m near the checkpoint then remove first checkpoint
-            if(distance <= 4){
+            //if user is 15m near the checkpoint then remove first checkpoint
+            if(distance <= 15){
                 checkpoints.removeFirst();
                 Toast.makeText(this,"Checkpoint Reached", Toast.LENGTH_SHORT).show();
             }
