@@ -500,6 +500,7 @@ public class MainActivity extends AppCompatActivity implements SensorEventListen
 
     private void showCloestBlueLight(){
         String message;
+
         if(closestBlueLight != null && appState.compareTo("SEARCH") == 0) {
             message = "Name: " + closestBlueLight.getName() +
                     "\nLat: " + closestBlueLight.getLat() +
@@ -507,10 +508,13 @@ public class MainActivity extends AppCompatActivity implements SensorEventListen
                     "\nDistance: " + closestBlueLight.getDistance() +
                     "\nBearing to Checkpoint: " + bearing +
                     "\nHeading: " + azimuth +
-                    "\nTurning Degrees: " + turningAngle +
-                    "\nCheckpoint" +
-                    "\nLat: " + checkpoints.getFirst().getLatitude() +
-                    "\nLong: " + checkpoints.getFirst().getLongitude();
+                    "\nTurning Degrees: " + turningAngle;
+            //If there are still checkpoints left then display the coordinates.
+            if(!checkpoints.isEmpty()){
+                message += "\nCheckpoint" +
+                        "\nLat: " + checkpoints.getFirst().getLatitude() +
+                        "\nLong: " + checkpoints.getFirst().getLongitude();
+            }
         }
         else{
             message = "no info available yet";
@@ -652,7 +656,7 @@ public class MainActivity extends AppCompatActivity implements SensorEventListen
             float distance = currentLocation.distanceTo(checkpoint);
             Toast.makeText(this,distance + "m from checkpoint", Toast.LENGTH_SHORT).show();
             //if user is 15m near the checkpoint then remove first checkpoint
-            if(distance <= 15){
+            if(distance <= 7){
                 checkpoints.removeFirst();
                 Toast.makeText(this,"Checkpoint Reached", Toast.LENGTH_SHORT).show();
             }
