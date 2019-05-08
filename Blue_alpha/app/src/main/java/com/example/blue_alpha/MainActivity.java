@@ -515,6 +515,9 @@ public class MainActivity extends AppCompatActivity implements SensorEventListen
                         "\nLat: " + checkpoints.getFirst().getLatitude() +
                         "\nLong: " + checkpoints.getFirst().getLongitude();
             }
+            else{
+                message += "\nDestination Reached";
+            }
         }
         else{
             message = "no info available yet";
