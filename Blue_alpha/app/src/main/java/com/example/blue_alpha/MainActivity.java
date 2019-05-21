@@ -2,6 +2,7 @@ package com.example.blue_alpha;
 
 import android.Manifest;
 import android.content.Context;
+import android.content.Intent;
 import android.content.IntentSender;
 import android.content.pm.PackageManager;
 import android.hardware.Sensor;
@@ -60,6 +61,8 @@ import java.util.LinkedList;
 
 public class MainActivity extends AppCompatActivity implements SensorEventListener{
 
+    public static final String LAT = "com.example.blue_alpha";
+    public static final String LNG = "com.example.blue_alpha";
     //state of app
     private String appState;
     //used to format the date
@@ -132,6 +135,12 @@ public class MainActivity extends AppCompatActivity implements SensorEventListen
                     showCloestBlueLight();
                     //printDirectionsData();
                     return true;
+
+                case R.id.navigation_map:
+                    appState = "MAP";
+                    mTextMessage.setText("Map");
+                    openNavi();
+                    return true;
             }
             return false;
         }
@@ -157,7 +166,6 @@ public class MainActivity extends AppCompatActivity implements SensorEventListen
         firebaseData_init();
         //set up AR environment
         arCore_init();
-
         //initialized for the magnetometer sensor
         mSensorManager=(SensorManager)getSystemService(SENSOR_SERVICE);
 
@@ -677,6 +685,12 @@ public class MainActivity extends AppCompatActivity implements SensorEventListen
             }
         }
     }
+    public void openNavi(){
+        Intent intent = new Intent(this, Navi.class);
+        intent.putExtra(LAT, 10);
+        intent.putExtra(LNG, 10);
 
+        startActivity(intent);
+    }
 
 }

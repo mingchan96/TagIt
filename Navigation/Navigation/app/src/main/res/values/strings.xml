@@ -1,8 +1,5 @@
 <resources>
-    <string name="app_name">blue_alpha</string>
-    <string name="title_home">Home</string>
-    <string name="title_list">List</string>
-    <string name="title_search">Search</string>
+    <string name="app_name">Navigation</string>
     <string name="access_token">pk.eyJ1Ijoid2VzdGUiLCJhIjoiY2p1NHhmajl3MTJuZjN5bXkwOWYzeHBxdSJ9.vtkZO2og_1n6ylCp-1d9TQ</string>
     <string name="start_navigating">Start Navigating</string>
 </resources>
